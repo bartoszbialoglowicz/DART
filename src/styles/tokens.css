@@ -1,0 +1,46 @@
+/*
+ * Design Tokens — Stratos Consulting palette
+ * Source: brand palette (Black / Vibe Purple / White)
+ *
+ * Tailwind v4 @theme block exposes every token as a utility class:
+ *   --color-brand-*  →  bg-brand-*, text-brand-*, border-brand-*, …
+ *   --color-surface-* →  bg-surface-*, …
+ *   --color-content-* →  text-content-*, …
+ */
+
+@theme {
+  /* ─── Brand primitives ──────────────────────────────────────────── */
+  --color-brand-black:        #000000;
+  --color-brand-purple:       #ac58e9;
+  --color-brand-white:        #ffffff;
+
+  /* ─── Purple tonal scale (derived, for hover/disabled/glow states) */
+  --color-brand-purple-50:    #f5eafd;
+  --color-brand-purple-100:   #e9d0fb;
+  --color-brand-purple-200:   #d3a1f7;
+  --color-brand-purple-300:   #bc72f3;
+  --color-brand-purple-400:   #ac58e9; /* ← base */
+  --color-brand-purple-500:   #9340d4;
+  --color-brand-purple-600:   #7a2db8;
+  --color-brand-purple-700:   #5f1d99;
+  --color-brand-purple-800:   #440f78;
+  --color-brand-purple-900:   #2a0654;
+
+  /* ─── Semantic surface tokens ───────────────────────────────────── */
+  --color-surface-base:       var(--color-brand-black);
+  --color-surface-overlay:    #0d0d0d;   /* cards / panels on black */
+  --color-surface-accent:     var(--color-brand-purple);
+  --color-surface-invert:     var(--color-brand-white);
+
+  /* ─── Semantic content (text) tokens ───────────────────────────── */
+  --color-content-primary:    var(--color-brand-white);
+  --color-content-secondary:  #a3a3a3;   /* muted on dark bg */
+  --color-content-accent:     var(--color-brand-purple);
+  --color-content-on-accent:  var(--color-brand-white);
+  --color-content-invert:     var(--color-brand-black);
+
+  /* ─── Semantic border tokens ────────────────────────────────────── */
+  --color-border-subtle:      #1f1f1f;
+  --color-border-accent:      var(--color-brand-purple);
+  --color-border-strong:      var(--color-brand-white);
+}
