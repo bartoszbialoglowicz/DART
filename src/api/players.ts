@@ -1,5 +1,5 @@
 import { client } from './client';
-import type { Player, PlayerPayload } from '../types/player';
+import type { Player, PlayerPayload, PlayerStats } from '../types/player';
 
 type PaginatedResponse<T> = {
   count: number;
@@ -53,5 +53,9 @@ export const playersApi = {
 
   setupProfile(payload: { first_name: string; last_name: string }) {
     return client.post<Player>('/players/setup-profile/', payload);
+  },
+
+  myStats() {
+    return client.get<PlayerStats>('/players/my-stats/');
   },
 };

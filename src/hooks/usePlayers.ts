@@ -46,3 +46,10 @@ export function useDeletePlayer() {
     onSuccess: () => qc.invalidateQueries({ queryKey: playerKeys.all() }),
   });
 }
+
+export function useMyStats() {
+  return useQuery({
+    queryKey: ['players', 'my-stats'],
+    queryFn:  () => playersApi.myStats(),
+  });
+}

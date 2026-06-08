@@ -53,7 +53,17 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           {username ? (
             <>
-              <span className="text-sm text-content-secondary">{username}</span>
+              <NavLink
+                to="/profil"
+                className={({ isActive }) =>
+                  [
+                    'text-sm transition-colors',
+                    isActive ? 'text-brand-white' : 'text-content-secondary hover:text-brand-white',
+                  ].join(' ')
+                }
+              >
+                {username}
+              </NavLink>
               <button
                 type="button"
                 onClick={logout}

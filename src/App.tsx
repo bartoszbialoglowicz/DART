@@ -6,6 +6,7 @@ import { TournamentPage } from './pages/TournamentPage';
 import { LiveMatchPage } from './pages/LiveMatchPage';
 import { RankingPage } from './pages/RankingPage';
 import { GraczePage } from './pages/GraczePage';
+import { ProfilePage } from './pages/ProfilePage';
 
 const router = createBrowserRouter([
   {
@@ -22,6 +23,7 @@ const router = createBrowserRouter([
       { path: 'turnieje/:id', element: <TournamentPage /> },
       { path: 'rankingi',     element: <RankingPage />    },
       { path: 'gracze',       element: <GraczePage />     },
+      { path: 'profil',       element: <ProfilePage />    },
     ],
   },
 ]);
