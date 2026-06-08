@@ -24,10 +24,12 @@ class Player(models.Model):
 
 class TrainingSession(models.Model):
     player     = models.ForeignKey(Player, on_delete=models.CASCADE, related_name='training_sessions')
-    played_at  = models.DateField(default=date.today)
-    average    = models.FloatField()
-    legs       = models.PositiveIntegerField(default=1)
-    notes      = models.TextField(blank=True)
+    played_at        = models.DateField(default=date.today)
+    average          = models.FloatField()
+    legs             = models.PositiveIntegerField(default=1)
+    double_attempts  = models.PositiveIntegerField(default=0)
+    double_hits      = models.PositiveIntegerField(default=0)
+    notes            = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

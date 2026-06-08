@@ -11,19 +11,23 @@ export type Player = {
 };
 
 export type TrainingSession = {
-  id:         number;
-  played_at:  string;
-  average:    number;
-  legs:       number;
-  notes:      string;
-  created_at: string;
+  id:              number;
+  played_at:       string;
+  average:         number;
+  legs:            number;
+  double_attempts: number;
+  double_hits:     number;
+  notes:           string;
+  created_at:      string;
 };
 
 export type TrainingSessionPayload = {
-  played_at: string;
-  average:   number;
-  legs:      number;
-  notes?:    string;
+  played_at:        string;
+  average:          number;
+  legs:             number;
+  double_attempts?: number;
+  double_hits?:     number;
+  notes?:           string;
 };
 
 export type PlayerStats = {

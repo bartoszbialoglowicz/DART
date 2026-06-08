@@ -12,5 +12,5 @@ class PlayerSerializer(serializers.ModelSerializer):
 class TrainingSessionSerializer(serializers.ModelSerializer):
     class Meta:
         model  = TrainingSession
-        fields = ['id', 'played_at', 'average', 'legs', 'notes', 'created_at']
+        fields = ['id', 'played_at', 'average', 'legs', 'double_attempts', 'double_hits', 'notes', 'created_at']
         read_only_fields = ['id', 'created_at']

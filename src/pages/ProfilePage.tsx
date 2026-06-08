@@ -1,6 +1,11 @@
+import { lazy, Suspense } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useMyStats } from '../hooks/usePlayers';
 import { useDeleteTrainingSession, useTrainingSessions } from '../hooks/useTraining';
+
+const TrainingCharts = lazy(() =>
+  import('../components/profile/TrainingCharts').then(m => ({ default: m.TrainingCharts }))
+);
 
 export function ProfilePage() {
   const { username } = useAuth();
@@ -91,7 +96,11 @@ function TrainingSection() {
             <StatCard label="Najlepsza"  value={bestAvg !== null ? bestAvg.toFixed(2) : '—'} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <Suspense fallback={<div className="h-48 rounded-xl border border-border-subtle bg-white/3" />}>
+            <TrainingCharts sessions={sessions} />
+          </Suspense>
+
+          <div className="flex flex-col gap-1.5 mt-6">
             {sessions.map(s => (
               <div
                 key={s.id}

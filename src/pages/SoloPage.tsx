@@ -109,9 +109,11 @@ export function SoloPage() {
       const [playerStats] = computeMatchStats('solo', legs, ['Ty', 'Przeciwnik']);
       if (playerStats.match_average > 0) {
         addTrainingSession.mutate({
-          played_at: new Date().toISOString().slice(0, 10),
-          average:   Math.round(playerStats.match_average * 100) / 100,
-          legs:      legs.length,
+          played_at:       new Date().toISOString().slice(0, 10),
+          average:         Math.round(playerStats.match_average * 100) / 100,
+          legs:            legs.length,
+          double_attempts: playerStats.double_attempts,
+          double_hits:     playerStats.double_hits,
         });
       }
     }
