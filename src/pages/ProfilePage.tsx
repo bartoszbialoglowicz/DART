@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useMyStats } from '../hooks/usePlayers';
-import { useDeleteTrainingSession, useTrainingSessions } from '../hooks/useTraining';
+import { useTrainingSessions } from '../hooks/useTraining';
 
 const TrainingCharts = lazy(() =>
   import('../components/profile/TrainingCharts').then(m => ({ default: m.TrainingCharts }))
@@ -72,7 +72,6 @@ export function ProfilePage() {
 
 function TrainingSection() {
   const { data: sessions = [], isLoading } = useTrainingSessions();
-  const deleteSession = useDeleteTrainingSession();
 
   const totalLegs   = sessions.reduce((s, r) => s + r.legs, 0);
   const weightedAvg = totalLegs > 0
@@ -120,14 +119,6 @@ function TrainingSection() {
                     {s.notes}
                   </span>
                 )}
-                <button
-                  type="button"
-                  aria-label="Usuń sesję"
-                  onClick={() => deleteSession.mutate(s.id)}
-                  className="ml-auto shrink-0 rounded p-1 text-content-secondary transition-colors hover:text-red-400"
-                >
-                  <IconTrash />
-                </button>
               </div>
             ))}
           </div>
@@ -175,10 +166,3 @@ function legsLabel(n: number): string {
   return 'legów';
 }
 
-function IconTrash() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 4h11M6 4V2.5a.5.5 0 0 1 .5-.5h2a.5.5 0 0 1 .5.5V4M5 4l.5 8.5M10 4l-.5 8.5M1.5 4l1 9a1 1 0 0 0 1 .9h8a1 1 0 0 0 1-.9l1-9" />
-    </svg>
-  );
-}
