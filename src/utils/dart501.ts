@@ -150,8 +150,6 @@ export function simulateCpuVisit(remaining: number, sigma: number): CpuVisit {
     const busted   = newRem < 0 || newRem === 1 || (newRem === 0 && !isDouble);
 
     darts.push(result);
-    console.log(`Target: ${target}`);
-    console.log(`Result: ${result.hit}`)
     if (busted) return { darts, totalScored: 0, busted: true };
     remaining = newRem;
     if (remaining === 0) break;
