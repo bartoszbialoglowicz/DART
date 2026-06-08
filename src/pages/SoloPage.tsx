@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { LiveMatchScreen } from '../components/bracket/LiveMatchScreen';
+import { CheckoutsGame } from '../components/solo/CheckoutsGame';
 import { SKILL_LEVELS, type SkillLevel } from '../utils/dart501';
 import { SET_OPTIONS, LEG_OPTIONS } from '../types/tournament';
 import type { BracketMatch } from '../types/bracket';
 import type { MatchFormat } from '../types/tournament';
 
-type ActiveMode = 'vs-cpu' | 'vs-guest' | null;
+type ActiveMode    = 'vs-cpu' | 'vs-guest' | 'checkouts' | null;
+type CheckoutsMode = 'easy' | 'hard';
 
 interface SoloConfig {
   difficulty?: SkillLevel;
@@ -68,10 +70,10 @@ const MODES = [
     ),
   },
   {
-    id: 'checkouts',
+    id: 'checkouts' as const,
     title: 'Checkouts',
-    description: 'Ćwicz zamknięcia — losowe wyjścia na czas.',
-    available: false,
+    description: 'Ćwicz zamknięcia — wspinaj się po wartościach od D20 wzwyż.',
+    available: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7">
         <polyline points="20 6 9 17 4 12" />
@@ -81,12 +83,14 @@ const MODES = [
 ];
 
 export function SoloPage() {
-  const [activeMode, setActiveMode] = useState<ActiveMode>(null);
-  const [soloConfig, setSoloConfig] = useState<SoloConfig | null>(null);
+  const [activeMode,    setActiveMode]    = useState<ActiveMode>(null);
+  const [soloConfig,    setSoloConfig]    = useState<SoloConfig | null>(null);
+  const [checkoutsMode, setCheckoutsMode] = useState<CheckoutsMode | null>(null);
 
   function handleBack() {
     setSoloConfig(null);
     setActiveMode(null);
+    setCheckoutsMode(null);
   }
 
   // ── Active game ──────────────────────────────────────────────────
@@ -132,6 +136,14 @@ export function SoloPage() {
 
   if (activeMode === 'vs-guest') {
     return <VsGuestSetup onStart={setSoloConfig} onBack={handleBack} />;
+  }
+
+  if (activeMode === 'checkouts' && checkoutsMode) {
+    return <CheckoutsGame mode={checkoutsMode} onBack={handleBack} />;
+  }
+
+  if (activeMode === 'checkouts') {
+    return <CheckoutsSetup onStart={setCheckoutsMode} onBack={handleBack} />;
   }
 
   // ── Mode selection ───────────────────────────────────────────────
@@ -221,6 +233,70 @@ function FormatSection({
 }
 
 // ── Setup screens ─────────────────────────────────────────────────────────────
+
+function CheckoutsSetup({
+  onStart, onBack,
+}: {
+  onStart: (mode: CheckoutsMode) => void;
+  onBack:  () => void;
+}) {
+  const [mode, setMode] = useState<CheckoutsMode>('easy');
+
+  return (
+    <div className="mx-auto w-full max-w-sm px-6 py-8">
+      <button type="button" onClick={onBack} className="mb-6 text-sm text-content-secondary transition-colors hover:text-brand-white">
+        ← Wróć
+      </button>
+
+      <h2 className="mb-2 text-lg font-semibold text-brand-white">Checkouts</h2>
+      <p className="mb-8 text-xs text-content-secondary leading-relaxed">
+        Zacznij od D20 (40). Zamknięcie w 3 lotkach → +10 pkt. Brak → −1 pkt (min. 40).
+      </p>
+
+      <section className="mb-8">
+        <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
+          Tryb
+        </p>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => setMode('easy')}
+            className={[
+              'flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-150',
+              mode === 'easy'
+                ? 'border-brand-purple bg-brand-purple/10'
+                : 'border-border-subtle bg-brand-black hover:border-brand-purple/50',
+            ].join(' ')}
+          >
+            <span className="text-sm font-semibold text-brand-white">Easy</span>
+            <span className="ml-auto text-xs text-content-secondary">Gra trwa bez limitu</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('hard')}
+            className={[
+              'flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-150',
+              mode === 'hard'
+                ? 'border-red-500/60 bg-red-950/20'
+                : 'border-border-subtle bg-brand-black hover:border-red-500/30',
+            ].join(' ')}
+          >
+            <span className="text-sm font-semibold text-brand-white">Hard</span>
+            <span className="ml-auto text-xs text-content-secondary">Koniec przy braku na 40</span>
+          </button>
+        </div>
+      </section>
+
+      <button
+        type="button"
+        onClick={() => onStart(mode)}
+        className="w-full rounded-xl bg-brand-purple px-6 py-4 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple-500"
+      >
+        Zagraj
+      </button>
+    </div>
+  );
+}
 
 function VsCpuSetup({
   onStart, onBack,

@@ -60,6 +60,14 @@ const CHECKOUTS: Record<number, string[]> = {
   170:['T20','T20','BULL'],
 };
 
+/** Returns the standard checkout route for a given value, e.g. 170 → "T20 · T20 · Bull". */
+export function getCheckoutHint(value: number): string | null {
+  if (value === 50) return 'Bull';
+  if (value % 2 === 0 && value >= 2 && value <= 40) return `D${value / 2}`;
+  const co = CHECKOUTS[value];
+  return co ? co.join(' · ') : null;
+}
+
 /** Converts a player's 3-dart visit average to the Gaussian throw sigma (mm). */
 export function avgToSigma(average: number): number {
   if (average <= 0 || !isFinite(average)) return 55;
