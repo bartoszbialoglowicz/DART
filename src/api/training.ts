@@ -1,9 +1,12 @@
 import { client } from './client';
 import type { TrainingSession, TrainingSessionPayload } from '../types/player';
 
+type Paginated<T> = { count: number; results: T[] };
+
 export const trainingApi = {
-  list() {
-    return client.get<TrainingSession[]>('/training/');
+  async list(): Promise<TrainingSession[]> {
+    const res = await client.get<Paginated<TrainingSession>>('/training/');
+    return res.results;
   },
 
   create(payload: TrainingSessionPayload) {
