@@ -73,10 +73,11 @@ export function LiveMatchPage() {
   function handleLegComplete(legs: LegRecord[], rounds: LegRound[], activePlayer: 0 | 1) {
     if (!bracket || !matchId) return;
 
-    const stats = computeMatchStats(matchId, legs, [
-      match.top.playerName    ?? 'Gracz 1',
-      match.bottom.playerName ?? 'Gracz 2',
-    ]);
+    const stats = computeMatchStats(
+      matchId, legs,
+      [match.top.playerName    ?? 'Gracz 1', match.bottom.playerName ?? 'Gracz 2'],
+      [match.top.playerId,                    match.bottom.playerId],
+    );
     statisticsApi.save(Number(id), stats).catch(console.error);
 
     if (ctx.kind === 'knockout' && bracket.format === 'knockout') {

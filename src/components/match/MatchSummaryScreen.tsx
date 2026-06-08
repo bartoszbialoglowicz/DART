@@ -39,8 +39,12 @@ export function MatchSummaryScreen({
   const bottomName = playerBottom.playerName ?? 'Gracz 2';
 
   const [statsTop, statsBottom] = useMemo(
-    () => computeMatchStats(matchId, completedLegs, [topName, bottomName]),
-    [matchId, completedLegs, topName, bottomName],
+    () => computeMatchStats(
+      matchId, completedLegs,
+      [topName, bottomName],
+      [playerTop.playerId, playerBottom.playerId],
+    ),
+    [matchId, completedLegs, topName, bottomName, playerTop.playerId, playerBottom.playerId],
   );
 
   const topVisits    = useMemo(() => getVisits(completedLegs, 0), [completedLegs]);

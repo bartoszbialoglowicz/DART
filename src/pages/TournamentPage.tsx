@@ -45,11 +45,17 @@ export function TournamentPage() {
     updateTournament.mutate({ id: tournamentId, bracket: updated });
   }
 
-  function saveStats(matchId: string, top: { playerName: string | null }, bottom: { playerName: string | null }, legs: ReturnType<typeof simulateMatch>['legs']) {
-    const stats = computeMatchStats(matchId, legs, [
-      top.playerName    ?? 'Gracz 1',
-      bottom.playerName ?? 'Gracz 2',
-    ]);
+  function saveStats(
+    matchId: string,
+    top:     { playerName: string | null; playerId?: number | null },
+    bottom:  { playerName: string | null; playerId?: number | null },
+    legs:    ReturnType<typeof simulateMatch>['legs'],
+  ) {
+    const stats = computeMatchStats(
+      matchId, legs,
+      [top.playerName ?? 'Gracz 1', bottom.playerName ?? 'Gracz 2'],
+      [top.playerId ?? null,         bottom.playerId ?? null],
+    );
     statisticsApi.save(tournamentId, stats).catch(console.error);
   }
 

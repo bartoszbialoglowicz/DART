@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 
 
 def _bracket_has_pending_matches(bracket: dict) -> bool:
@@ -33,6 +34,13 @@ def _bracket_has_pending_matches(bracket: dict) -> bool:
 class MatchStatistic(models.Model):
     tournament     = models.ForeignKey('Tournament', on_delete=models.CASCADE, related_name='statistics')
     match_id       = models.CharField(max_length=20)
+    player         = models.ForeignKey(
+        'players.Player',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='statistics',
+    )
     player_name    = models.CharField(max_length=200)
     match_average  = models.FloatField(default=0)
     count_180      = models.IntegerField(default=0)
@@ -40,7 +48,18 @@ class MatchStatistic(models.Model):
     short_legs     = models.IntegerField(default=0)
 
     class Meta:
-        unique_together = [('tournament', 'match_id', 'player_name')]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tournament', 'match_id', 'player'],
+                condition=Q(player__isnull=False),
+                name='unique_stat_by_player_id',
+            ),
+            models.UniqueConstraint(
+                fields=['tournament', 'match_id', 'player_name'],
+                condition=Q(player__isnull=True),
+                name='unique_stat_by_player_name',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.tournament} / {self.match_id} / {self.player_name}'

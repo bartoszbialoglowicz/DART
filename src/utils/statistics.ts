@@ -1,6 +1,7 @@
 import type { LegRecord, LegRound } from '../types/bracket';
 
 export type PlayerMatchStats = {
+  player_id?:     number | null;
   player_name:    string;
   match_id:       string;
   match_average:  number;
@@ -37,6 +38,7 @@ export function computeMatchStats(
   matchId:       string,
   completedLegs: LegRecord[],
   playerNames:   [string, string],
+  playerIds?:    [number | null, number | null],
 ): [PlayerMatchStats, PlayerMatchStats] {
   return [0, 1].map((i) => {
     const idx        = i as 0 | 1;
@@ -59,6 +61,7 @@ export function computeMatchStats(
     }
 
     return {
+      player_id:      playerIds?.[idx] ?? null,
       player_name:    playerNames[idx],
       match_id:       matchId,
       match_average:  avg(allScores),

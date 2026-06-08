@@ -43,19 +43,25 @@ class TournamentViewSet(viewsets.ModelViewSet):
         for item in items:
             match_id    = item.get('match_id', '')
             player_name = item.get('player_name', '')
+            player_id   = item.get('player_id') or None
             if not match_id or not player_name:
                 continue
-            obj, _ = MatchStatistic.objects.update_or_create(
-                tournament=tournament,
-                match_id=match_id,
-                player_name=player_name,
-                defaults={
-                    'match_average':  item.get('match_average', 0),
-                    'count_180':      item.get('count_180', 0),
-                    'high_checkouts': item.get('high_checkouts', 0),
-                    'short_legs':     item.get('short_legs', 0),
-                },
-            )
+
+            if player_id:
+                lookup   = {'tournament': tournament, 'match_id': match_id, 'player_id': player_id}
+                defaults = {'player_name': player_name}
+            else:
+                lookup   = {'tournament': tournament, 'match_id': match_id, 'player_name': player_name, 'player': None}
+                defaults = {}
+
+            defaults.update({
+                'match_average':  item.get('match_average', 0),
+                'count_180':      item.get('count_180', 0),
+                'high_checkouts': item.get('high_checkouts', 0),
+                'short_legs':     item.get('short_legs', 0),
+            })
+
+            obj, _ = MatchStatistic.objects.update_or_create(**lookup, defaults=defaults)
             saved.append(obj)
 
         return Response(MatchStatisticSerializer(saved, many=True).data)
