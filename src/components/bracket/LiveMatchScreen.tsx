@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { BracketMatch, LegRecord, LegRound } from '../../types/bracket';
+import type { BracketMatch, DoubleAttempt, LegRecord, LegRound } from '../../types/bracket';
 import type { MatchFormat } from '../../types/tournament';
 import { currentLegAvg, matchAvg } from '../../utils/statistics';
-import { simulateCpuVisit } from '../../utils/dart501';
+import { cpuVisitDoubleAttempt, simulateCpuVisit } from '../../utils/dart501';
 import { MatchSummaryScreen } from '../match/MatchSummaryScreen';
 
 type Props = {
@@ -17,12 +17,13 @@ type Props = {
 
 const START = 501;
 
-type Score      = { score: number; remaining: number };
+type Score      = { score: number; remaining: number; doubleAttempt?: DoubleAttempt };
 type Round      = { p0?: Score; p1?: Score };
 type KeyVar     = 'digit' | 'clear' | 'ok';
 type Key        = { label: string; onPress: () => void; variant: KeyVar };
 type Phase      = 'playing' | 'leg-won' | 'set-won' | 'match-won';
 type EditTarget = { roundIdx: number; player: 0 | 1 } | null;
+type DoubleModalPending = { score: number; remainingBefore: number; isClosing: boolean };
 
 export function LiveMatchScreen({ match, matchFormat, isOwner, onClose, onResult, onLegComplete, onScoreEntered }: Props) {
   const { top, bottom } = match;
@@ -46,7 +47,8 @@ export function LiveMatchScreen({ match, matchFormat, isOwner, onClose, onResult
   const [setsWon,       setSetsWon]       = useState<[number, number]>([0, 0]);
   const [phase,         setPhase]         = useState<Phase>('playing');
   const [legWinner,     setLegWinner]     = useState<0 | 1>(0);
-  const [completedLegs, setCompletedLegs] = useState<LegRecord[]>(savedLegs);
+  const [completedLegs,      setCompletedLegs]      = useState<LegRecord[]>(savedLegs);
+  const [doubleModalPending, setDoubleModalPending] = useState<DoubleModalPending | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const p0Remaining = START - rounds.reduce((s, r) => s + (r.p0?.score ?? 0), 0);
@@ -85,9 +87,9 @@ export function LiveMatchScreen({ match, matchFormat, isOwner, onClose, onResult
   }, [editTarget, input]);
 
   // Core scoring logic — called by both human (confirmScore) and CPU auto-play
-  const applyScore = useCallback((score: number) => {
+  const applyScore = useCallback((score: number, doubleAttempt?: DoubleAttempt) => {
     const remaining = currentRemaining - score;
-    const newScore: Score = { score, remaining };
+    const newScore: Score = { score, remaining, ...(doubleAttempt ? { doubleAttempt } : {}) };
 
     const newRounds: Round[] = activePlayer === 0
       ? [...rounds, { p0: newScore }]
@@ -138,8 +140,8 @@ export function LiveMatchScreen({ match, matchFormat, isOwner, onClose, onResult
         ? newScore
         : (player === 0 ? (r.p0?.score ?? 0) : (r.p1?.score ?? 0));
       const newRem = START - cum - scoreHere;
-      if (player === 0) return r.p0 !== undefined ? { ...r, p0: { score: scoreHere, remaining: newRem } } : r;
-      return r.p1 !== undefined ? { ...r, p1: { score: scoreHere, remaining: newRem } } : r;
+      if (player === 0) return r.p0 !== undefined ? { ...r, p0: { ...r.p0, score: scoreHere, remaining: newRem } } : r;
+      return r.p1 !== undefined ? { ...r, p1: { ...r.p1, score: scoreHere, remaining: newRem } } : r;
     });
     setRounds(newRounds);
     onScoreEntered?.(newRounds, activePlayer);
@@ -156,11 +158,17 @@ export function LiveMatchScreen({ match, matchFormat, isOwner, onClose, onResult
     if (editTarget !== null) {
       applyScoreEdit(editTarget.roundIdx, editTarget.player, Number(input));
       setEditTarget(null);
-    } else {
-      applyScore(Number(input));
+      setInput('');
+      return;
     }
+    const score = Number(input);
     setInput('');
-  }, [canConfirm, isCpuTurn, input, applyScore, editTarget, applyScoreEdit]);
+    if (currentRemaining <= 170) {
+      setDoubleModalPending({ score, remainingBefore: currentRemaining, isClosing: score === currentRemaining });
+    } else {
+      applyScore(score);
+    }
+  }, [canConfirm, isCpuTurn, input, currentRemaining, applyScore, editTarget, applyScoreEdit]);
 
   // Always-fresh ref — avoids stale closure in CPU timer without re-triggering the effect
   const applyScoreRef = useRef(applyScore);
@@ -173,7 +181,8 @@ export function LiveMatchScreen({ match, matchFormat, isOwner, onClose, onResult
     const rem   = currentRemaining;
     const t = setTimeout(() => {
       const visit = simulateCpuVisit(rem, sigma);
-      applyScoreRef.current(visit.totalScored);
+      const doubleAttempt = rem <= 170 ? cpuVisitDoubleAttempt(visit, rem) : undefined;
+      applyScoreRef.current(visit.totalScored, doubleAttempt);
     }, 900);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -498,6 +507,22 @@ export function LiveMatchScreen({ match, matchFormat, isOwner, onClose, onResult
         </div>
       )}
 
+      {/* ── Double attempt modal ─────────────────────────── */}
+      {doubleModalPending && (
+        <DoubleModal
+          state={doubleModalPending}
+          playerName={playerName(activePlayer)}
+          onConfirm={(dartsAtDouble, dartsToClose) => {
+            applyScore(doubleModalPending.score, { dartsAtDouble, dartsToClose });
+            setDoubleModalPending(null);
+          }}
+          onSkip={() => {
+            applyScore(doubleModalPending.score);
+            setDoubleModalPending(null);
+          }}
+        />
+      )}
+
       {/* ── Match won: full summary screen ────────────────── */}
       {phase === 'match-won' && (
         <MatchSummaryScreen
@@ -568,6 +593,109 @@ function PlayerHeader({
       <span className="text-xs tabular-nums text-content-secondary leading-tight">
         {matchAvg > 0 ? matchAvg.toFixed(1) : '—'}
       </span>
+    </div>
+  );
+}
+
+function DoubleModal({
+  state, playerName, onConfirm, onSkip,
+}: {
+  state:      DoubleModalPending;
+  playerName: string;
+  onConfirm:  (dartsAtDouble: number, dartsToClose?: number) => void;
+  onSkip:     () => void;
+}) {
+  const [dartsAtDouble, setDartsAtDouble] = useState<number | null>(null);
+  const [dartsToClose,  setDartsToClose]  = useState<number | null>(null);
+
+  const closeValid = !state.isClosing || dartsToClose !== null;
+  const doubleValid = dartsAtDouble !== null;
+  const orderValid = !state.isClosing || dartsAtDouble === null || dartsToClose === null || dartsAtDouble >= dartsToClose;
+  const canConfirm = doubleValid && closeValid && orderValid;
+
+  function handleConfirm() {
+    if (!canConfirm || dartsAtDouble === null) return;
+    onConfirm(dartsAtDouble, state.isClosing ? (dartsToClose ?? undefined) : undefined);
+  }
+
+  const btnBase = 'h-12 w-12 rounded-xl text-sm font-bold transition-colors';
+  const btnActive = (selected: boolean) =>
+    selected ? 'bg-brand-purple text-brand-white' : 'bg-white/8 text-content-secondary hover:bg-white/12';
+
+  return (
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-brand-black/97 px-8 gap-6">
+      <div className="text-center">
+        <p className="text-xs font-medium uppercase tracking-widest text-content-secondary">
+          {playerName} · pozostało {state.remainingBefore}
+        </p>
+        <p className="mt-1 text-2xl font-black text-brand-white">
+          {state.isClosing ? 'Zamknięcie lega!' : 'Podejście do doubla'}
+        </p>
+      </div>
+
+      <div className="w-full max-w-xs flex flex-col gap-5">
+        {/* Darts aimed at double */}
+        <div>
+          <p className="mb-2 text-xs text-content-secondary text-center">
+            Ile lotek celowałeś w <span className="text-brand-white font-semibold">double</span>?
+          </p>
+          <div className="flex justify-center gap-3">
+            {[0, 1, 2, 3].map(n => (
+              <button
+                key={n}
+                type="button"
+                onPointerDown={(e) => { e.preventDefault(); setDartsAtDouble(n); }}
+                className={`${btnBase} ${btnActive(dartsAtDouble === n)}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Darts to close — only when this visit closed the leg */}
+        {state.isClosing && (
+          <div>
+            <p className="mb-2 text-xs text-content-secondary text-center">
+              Ile lotek zajęło <span className="text-brand-white font-semibold">zamknięcie</span>?
+            </p>
+            <div className="flex justify-center gap-3">
+              {[1, 2, 3].map(n => {
+                const invalid = dartsAtDouble !== null && n > dartsAtDouble;
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    disabled={invalid}
+                    onPointerDown={(e) => { e.preventDefault(); if (!invalid) setDartsToClose(n); }}
+                    className={`${btnBase} ${btnActive(dartsToClose === n)} disabled:opacity-25`}
+                  >
+                    {n}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex w-full max-w-xs gap-3">
+        <button
+          type="button"
+          onPointerDown={(e) => { e.preventDefault(); onSkip(); }}
+          className="flex-1 rounded-xl border border-border-subtle py-3 text-sm text-content-secondary hover:text-brand-white transition-colors"
+        >
+          Pomiń
+        </button>
+        <button
+          type="button"
+          disabled={!canConfirm}
+          onPointerDown={(e) => { e.preventDefault(); handleConfirm(); }}
+          className="flex-1 rounded-xl bg-brand-purple/80 py-3 text-sm font-semibold text-brand-white hover:bg-brand-purple disabled:opacity-30 transition-colors"
+        >
+          Zatwierdź
+        </button>
+      </div>
     </div>
   );
 }

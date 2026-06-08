@@ -15,9 +15,14 @@ export type MatchResult = {
   winner:        'top' | 'bottom';
 };
 
+export type DoubleAttempt = {
+  dartsAtDouble: number;   // darts aimed at a double in this visit (0–3)
+  dartsToClose?: number;   // darts used to close the leg (1–3), only on winning visit
+};
+
 export type LegRound = {
-  p0?: { score: number; remaining: number };
-  p1?: { score: number; remaining: number };
+  p0?: { score: number; remaining: number; doubleAttempt?: DoubleAttempt };
+  p1?: { score: number; remaining: number; doubleAttempt?: DoubleAttempt };
 };
 
 export type LegRecord = {

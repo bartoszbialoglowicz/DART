@@ -42,10 +42,13 @@ class MatchStatistic(models.Model):
         related_name='statistics',
     )
     player_name    = models.CharField(max_length=200)
-    match_average  = models.FloatField(default=0)
-    count_180      = models.IntegerField(default=0)
-    high_checkouts = models.IntegerField(default=0)
-    short_legs     = models.IntegerField(default=0)
+    match_average    = models.FloatField(default=0)
+    count_180        = models.IntegerField(default=0)
+    high_checkouts   = models.IntegerField(default=0)
+    short_legs       = models.IntegerField(default=0)
+    double_attempts  = models.IntegerField(default=0)
+    double_hits      = models.IntegerField(default=0)
+    darts_per_leg    = models.FloatField(default=0)
 
     class Meta:
         constraints = [

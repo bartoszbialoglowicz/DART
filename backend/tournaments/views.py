@@ -55,10 +55,13 @@ class TournamentViewSet(viewsets.ModelViewSet):
                 defaults = {}
 
             defaults.update({
-                'match_average':  item.get('match_average', 0),
-                'count_180':      item.get('count_180', 0),
-                'high_checkouts': item.get('high_checkouts', 0),
-                'short_legs':     item.get('short_legs', 0),
+                'match_average':   item.get('match_average', 0),
+                'count_180':       item.get('count_180', 0),
+                'high_checkouts':  item.get('high_checkouts', 0),
+                'short_legs':      item.get('short_legs', 0),
+                'double_attempts': item.get('double_attempts', 0),
+                'double_hits':     item.get('double_hits', 0),
+                'darts_per_leg':   item.get('darts_per_leg', 0),
             })
 
             obj, _ = MatchStatistic.objects.update_or_create(**lookup, defaults=defaults)

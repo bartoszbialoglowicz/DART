@@ -14,4 +14,4 @@ class TournamentSerializer(serializers.ModelSerializer):
 class MatchStatisticSerializer(serializers.ModelSerializer):
     class Meta:
         model  = MatchStatistic
-        fields = ['id', 'match_id', 'player_id', 'player_name', 'match_average', 'count_180', 'high_checkouts', 'short_legs']
+        fields = ['id', 'match_id', 'player_id', 'player_name', 'match_average', 'count_180', 'high_checkouts', 'short_legs', 'double_attempts', 'double_hits', 'darts_per_leg']

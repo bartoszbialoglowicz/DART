@@ -138,6 +138,20 @@ export function chooseTarget(remaining: number, dartsLeft: number): string {
   return 'T20';
 }
 
+export function cpuVisitDoubleAttempt(
+  visit: CpuVisit,
+  remainingBefore: number,
+): import('../types/bracket').DoubleAttempt {
+  const dartsAtDouble = visit.darts.filter(d =>
+    d.target.startsWith('D') || d.target === 'BULL' || d.target === 'BULLSEYE' || d.target === '25'
+  ).length;
+  const isClosing = remainingBefore - visit.totalScored === 0;
+  return {
+    dartsAtDouble,
+    ...(isClosing ? { dartsToClose: visit.darts.length } : {}),
+  };
+}
+
 export function simulateCpuVisit(remaining: number, sigma: number): CpuVisit {
   const visitStart = remaining;
   const darts: ThrowResult[] = [];
