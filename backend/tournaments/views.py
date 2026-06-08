@@ -1,7 +1,7 @@
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import MatchStatistic, Tournament, _bracket_has_pending_matches
+from .models import MatchLeg, MatchStatistic, Tournament, _bracket_has_pending_matches, strip_legs_from_bracket
 from .serializers import MatchStatisticSerializer, TournamentSerializer
 
 
@@ -13,7 +13,7 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
 
 
 class TournamentViewSet(viewsets.ModelViewSet):
-    queryset           = Tournament.objects.select_related('owner').all()
+    queryset           = Tournament.objects.select_related('owner').prefetch_related('match_legs').all()
     serializer_class   = TournamentSerializer
     http_method_names  = ['get', 'post', 'patch', 'put', 'delete', 'head', 'options']
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
@@ -22,9 +22,33 @@ class TournamentViewSet(viewsets.ModelViewSet):
         serializer.save(owner=self.request.user)
 
     def perform_update(self, serializer):
-        bracket   = serializer.validated_data.get('bracket')
-        is_active = _bracket_has_pending_matches(bracket) if bracket else serializer.instance.is_active
-        serializer.save(is_active=is_active)
+        bracket = serializer.validated_data.get('bracket')
+        if bracket:
+            cleaned, legs_dict = strip_legs_from_bracket(bracket)
+            for mid, data in legs_dict.items():
+                MatchLeg.objects.update_or_create(
+                    tournament=serializer.instance,
+                    match_id=mid,
+                    defaults=data,
+                )
+            serializer.save(bracket=cleaned, is_active=_bracket_has_pending_matches(cleaned))
+        else:
+            serializer.save(is_active=serializer.instance.is_active)
+
+    @action(detail=True, methods=['put', 'patch'], url_path=r'match-legs/(?P<match_id>[^/.]+)')
+    def update_match_leg(self, request, pk=None, match_id=None):
+        tournament = self.get_object()
+        if tournament.owner != request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        obj, _ = MatchLeg.objects.update_or_create(
+            tournament=tournament,
+            match_id=match_id,
+            defaults={
+                'legs':        request.data.get('legs', []),
+                'current_leg': request.data.get('currentLeg'),
+            },
+        )
+        return Response({'match_id': obj.match_id, 'legs': obj.legs, 'currentLeg': obj.current_leg})
 
     @action(detail=True, methods=['get', 'put'], url_path='statistics')
     def statistics(self, request, pk=None):
@@ -34,7 +58,6 @@ class TournamentViewSet(viewsets.ModelViewSet):
             qs = MatchStatistic.objects.filter(tournament=tournament)
             return Response(MatchStatisticSerializer(qs, many=True).data)
 
-        # PUT — owner only
         if tournament.owner != request.user:
             return Response(status=status.HTTP_403_FORBIDDEN)
 

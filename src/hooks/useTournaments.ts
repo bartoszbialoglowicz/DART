@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { tournamentsApi } from '../api/tournaments';
 import { statisticsApi } from '../api/statistics';
-import type { BracketData } from '../types/bracket';
+import type { BracketData, CurrentLeg, LegRecord } from '../types/bracket';
 
 export const tournamentKeys = {
   all:        ()           => ['tournaments']                       as const,
@@ -51,6 +51,21 @@ export function useUpdateTournament() {
     onSuccess: (saved) => {
       qc.setQueryData(tournamentKeys.detail(saved.id), saved);
       qc.invalidateQueries({ queryKey: tournamentKeys.list() });
+    },
+  });
+}
+
+export function useUpdateMatchLeg() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, matchId, legs, currentLeg }: {
+      id:         number;
+      matchId:    string;
+      legs:       LegRecord[];
+      currentLeg: CurrentLeg | null;
+    }) => tournamentsApi.updateMatchLeg(id, matchId, legs, currentLeg),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: tournamentKeys.detail(id) });
     },
   });
 }

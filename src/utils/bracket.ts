@@ -1,4 +1,4 @@
-import type { BracketData, BracketMatch, BracketRound, CurrentLeg, Group, GroupsBracketData, LegRecord, MatchResult, MatchSlot } from '../types/bracket';
+import type { BracketData, BracketMatch, BracketRound, Group, GroupsBracketData, MatchResult, MatchSlot } from '../types/bracket';
 import type { Player } from '../types/player';
 import type { TournamentConfig } from '../types/tournament';
 import { avgToSigma } from './dart501';
@@ -86,37 +86,6 @@ export function applyResult(b: KnockoutBracket, matchId: string, result: MatchRe
   return { ...b, rounds: applyResultInRounds(b.rounds, matchId, result) };
 }
 
-export function setMatchLegs(b: KnockoutBracket, matchId: string, legs: LegRecord[]): KnockoutBracket {
-  const [rPart, mPart] = matchId.split('-');
-  const roundIndex = parseInt(rPart.slice(1));
-  const matchIndex = parseInt(mPart.slice(1));
-  return {
-    ...b,
-    rounds: b.rounds.map((round, ri) =>
-      ri !== roundIndex ? round : {
-        ...round,
-        matches: round.matches.map((m, mi) => mi === matchIndex ? { ...m, legs } : m),
-      }
-    ),
-  };
-}
-
-export function setMatchCurrentLeg(b: KnockoutBracket, matchId: string, currentLeg: CurrentLeg | null): KnockoutBracket {
-  const [rPart, mPart] = matchId.split('-');
-  const roundIndex = parseInt(rPart.slice(1));
-  const matchIndex = parseInt(mPart.slice(1));
-  return {
-    ...b,
-    rounds: b.rounds.map((round, ri) =>
-      ri !== roundIndex ? round : {
-        ...round,
-        matches: round.matches.map((m, mi) =>
-          mi !== matchIndex ? m : { ...m, currentLeg: currentLeg ?? undefined }
-        ),
-      }
-    ),
-  };
-}
 
 // ── Groups ────────────────────────────────────────────────────────────────────
 
@@ -231,31 +200,6 @@ export function generatePlayoffFromGroups(groups: Group[]): BracketRound[] {
   });
 }
 
-export function setGroupMatchLegs(b: GroupsBracketData, groupId: string, matchId: string, legs: LegRecord[]): GroupsBracketData {
-  return {
-    ...b,
-    groups: b.groups.map(g =>
-      g.id !== groupId ? g : {
-        ...g,
-        matches: (g.matches ?? []).map(m => m.id === matchId ? { ...m, legs } : m),
-      }
-    ),
-  };
-}
-
-export function setGroupMatchCurrentLeg(b: GroupsBracketData, groupId: string, matchId: string, currentLeg: CurrentLeg | null): GroupsBracketData {
-  return {
-    ...b,
-    groups: b.groups.map(g =>
-      g.id !== groupId ? g : {
-        ...g,
-        matches: (g.matches ?? []).map(m =>
-          m.id !== matchId ? m : { ...m, currentLeg: currentLeg ?? undefined }
-        ),
-      }
-    ),
-  };
-}
 
 export function applyPlayoffResult(b: GroupsBracketData, matchId: string, result: MatchResult): GroupsBracketData {
   if (!b.playoff) return b;
