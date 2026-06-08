@@ -50,4 +50,8 @@ export const playersApi = {
   destroy(id: number) {
     return client.delete(`/players/${id}/`);
   },
+
+  setupProfile(payload: { first_name: string; last_name: string }) {
+    return client.post<Player>('/players/setup-profile/', payload);
+  },
 };

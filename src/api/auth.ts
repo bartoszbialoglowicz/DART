@@ -1,8 +1,9 @@
 import { client } from './client';
 
 export interface AuthResponse {
-  token: string;
-  username: string;
+  token:     string;
+  username:  string;
+  player_id: number | null;
 }
 
 export const authApi = {
@@ -19,6 +20,6 @@ export const authApi = {
   },
 
   me() {
-    return client.get<{ username: string }>('/auth/me/');
+    return client.get<{ username: string; player_id: number | null }>('/auth/me/');
   },
 };

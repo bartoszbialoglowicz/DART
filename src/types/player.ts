@@ -1,11 +1,12 @@
 export type Player = {
   id: number;
+  user_id:    number | null;
   first_name: string;
-  last_name: string;
-  average: string;
+  last_name:  string;
+  average:    string;
   photo:      string | null;
   winner_img: string | null;
-  cpu: boolean;
+  cpu:        boolean;
   created_at: string;
 };
 

@@ -5,5 +5,5 @@ from .models import Player
 class PlayerSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Player
-        fields = ['id', 'first_name', 'last_name', 'average', 'photo', 'winner_img', 'cpu', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'user_id', 'first_name', 'last_name', 'average', 'photo', 'winner_img', 'cpu', 'created_at']
+        read_only_fields = ['id', 'user_id', 'created_at']

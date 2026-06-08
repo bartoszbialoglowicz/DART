@@ -1,7 +1,10 @@
+from django.conf import settings
 from django.db import models
 
 
 class Player(models.Model):
+    user       = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='player_profile')
+    owner      = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.CASCADE, related_name='owned_players')
     first_name = models.CharField(max_length=100)
     last_name  = models.CharField(max_length=100)
     average    = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
