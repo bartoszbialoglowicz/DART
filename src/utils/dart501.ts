@@ -65,7 +65,7 @@ export function getCheckoutHint(value: number): string | null {
   if (value === 50) return 'Bull';
   if (value % 2 === 0 && value >= 2 && value <= 40) return `D${value / 2}`;
   const co = CHECKOUTS[value];
-  return co ? co.join(' · ') : null;
+  return co ? co.join(' ') : null;
 }
 
 /** Converts a player's 3-dart visit average to the Gaussian throw sigma (mm). */

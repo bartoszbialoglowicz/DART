@@ -101,7 +101,7 @@ export function CheckoutsGame({ mode, onBack }: Props) {
         </span>
 
         <div className="flex items-start gap-3">
-          <span className="text-8xl font-black tabular-nums text-brand-white leading-none">
+          <span className="text-9xl font-black tabular-nums text-brand-white leading-none">
             {currentValue}
           </span>
           {delta !== null && (
@@ -115,7 +115,7 @@ export function CheckoutsGame({ mode, onBack }: Props) {
         </div>
 
         {hint && (
-          <span className="text-sm font-medium text-brand-purple/70 tracking-wide">
+          <span className="text-base font-semibold text-brand-purple tracking-widest">
             {hint}
           </span>
         )}
@@ -185,9 +185,9 @@ export function CheckoutsGame({ mode, onBack }: Props) {
         <button
           type="button"
           onPointerDown={(e) => { e.preventDefault(); if (phase === 'playing') submit(null); }}
-          className="rounded-2xl bg-white/5 py-4 text-sm font-semibold text-content-secondary hover:bg-white/10 hover:text-brand-white active:scale-95 transition-colors"
+          className="rounded-2xl bg-white/5 py-5 text-xl font-semibold text-content-secondary hover:bg-white/10 hover:text-brand-white active:scale-95 transition-colors"
         >
-          Brak
+          Brak trafienia
         </button>
       </div>
 
