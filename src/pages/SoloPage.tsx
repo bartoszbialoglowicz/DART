@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { LiveMatchScreen } from '../components/bracket/LiveMatchScreen';
 import { CheckoutsGame } from '../components/solo/CheckoutsGame';
 import { SKILL_LEVELS, type SkillLevel } from '../utils/dart501';
 import { SET_OPTIONS, LEG_OPTIONS } from '../types/tournament';
-import type { BracketMatch } from '../types/bracket';
+import type { BracketMatch, LegRecord, LegRound } from '../types/bracket';
 import type { MatchFormat } from '../types/tournament';
+import { useAddTrainingSession } from '../hooks/useTraining';
+import { computeMatchStats } from '../utils/statistics';
 
 type ActiveMode    = 'vs-cpu' | 'vs-guest' | 'checkouts' | null;
 type CheckoutsMode = 'easy' | 'hard';
@@ -87,10 +89,33 @@ export function SoloPage() {
   const [soloConfig,    setSoloConfig]    = useState<SoloConfig | null>(null);
   const [checkoutsMode, setCheckoutsMode] = useState<CheckoutsMode | null>(null);
 
+  const completedLegsRef   = useRef<LegRecord[]>([]);
+  const addTrainingSession = useAddTrainingSession();
+
   function handleBack() {
     setSoloConfig(null);
     setActiveMode(null);
     setCheckoutsMode(null);
+    completedLegsRef.current = [];
+  }
+
+  function handleLegComplete(legs: LegRecord[], _rounds: LegRound[], _active: 0 | 1) {
+    completedLegsRef.current = legs;
+  }
+
+  function handleSoloResult() {
+    const legs = completedLegsRef.current;
+    if (legs.length > 0) {
+      const [playerStats] = computeMatchStats('solo', legs, ['Ty', 'Przeciwnik']);
+      if (playerStats.match_average > 0) {
+        addTrainingSession.mutate({
+          played_at: new Date().toISOString().slice(0, 10),
+          average:   Math.round(playerStats.match_average * 100) / 100,
+          legs:      legs.length,
+        });
+      }
+    }
+    handleBack();
   }
 
   // ── Active game ──────────────────────────────────────────────────
@@ -106,7 +131,8 @@ export function SoloPage() {
         matchFormat={soloConfig.matchFormat}
         isOwner={true}
         onClose={handleBack}
-        onResult={handleBack}
+        onLegComplete={handleLegComplete}
+        onResult={handleSoloResult}
       />
     );
   }
@@ -124,7 +150,8 @@ export function SoloPage() {
         matchFormat={soloConfig.matchFormat}
         isOwner={true}
         onClose={handleBack}
-        onResult={handleBack}
+        onLegComplete={handleLegComplete}
+        onResult={handleSoloResult}
       />
     );
   }
