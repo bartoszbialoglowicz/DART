@@ -3,12 +3,30 @@ from django.db import models
 
 
 def _bracket_has_pending_matches(bracket: dict) -> bool:
-    if bracket.get('format') == 'knockout':
+    fmt = bracket.get('format')
+
+    if fmt == 'knockout':
         for rnd in bracket.get('rounds', []):
             for match in rnd.get('matches', []):
                 if not match.get('result'):
                     return True
         return False
+
+    if fmt == 'groups':
+        for group in bracket.get('groups', []):
+            for match in group.get('matches', []):
+                if not match.get('result'):
+                    return True
+        # All group matches done — check playoff
+        playoff = bracket.get('playoff')
+        if not playoff:
+            return True  # playoff not generated yet, tournament still active
+        for rnd in playoff.get('rounds', []):
+            for match in rnd.get('matches', []):
+                if not match.get('result'):
+                    return True
+        return False
+
     return True
 
 
