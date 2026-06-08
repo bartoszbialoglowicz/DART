@@ -6,18 +6,31 @@ import { AuthModal } from '../auth/AuthModal';
 type NavItem = {
   to: string;
   label: string;
+  authOnly?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/solo',     label: 'Solo'     },
-  { to: '/turnieje', label: 'Turnieje' },
-  { to: '/rankingi', label: 'Rankingi' },
-  { to: '/gracze',   label: 'Gracze'   },
+  { to: '/profil',    label: 'Profil',    authOnly: true },
+  { to: '/solo',      label: 'Solo'      },
+  { to: '/turnieje',  label: 'Turnieje'  },
+  { to: '/rankingi',  label: 'Rankingi'  },
+  { to: '/gracze',    label: 'Gracze'    },
 ];
+
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  [
+    'relative px-5 py-2 text-sm font-medium tracking-wide transition-colors duration-200',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-purple rounded-sm',
+    isActive
+      ? 'text-brand-white after:absolute after:inset-x-3 after:-bottom-[1px] after:h-[2px] after:rounded-full after:bg-brand-purple'
+      : 'text-content-secondary hover:text-brand-white',
+  ].join(' ');
 
 export function Navbar() {
   const { username, logout } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
+
+  const visibleItems = NAV_ITEMS.filter(item => !item.authOnly || !!username);
 
   return (
     <header className="sticky top-0 z-50 border-b border-border-subtle bg-brand-black">
@@ -30,22 +43,9 @@ export function Navbar() {
         </span>
 
         <ul className="flex items-center gap-1" role="list">
-          {NAV_ITEMS.map(({ to, label }) => (
+          {visibleItems.map(({ to, label }) => (
             <li key={to}>
-              <NavLink
-                to={to}
-                className={({ isActive }) =>
-                  [
-                    'relative px-5 py-2 text-sm font-medium tracking-wide transition-colors duration-200',
-                    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-purple rounded-sm',
-                    isActive
-                      ? 'text-brand-white after:absolute after:inset-x-3 after:-bottom-[1px] after:h-[2px] after:rounded-full after:bg-brand-purple'
-                      : 'text-content-secondary hover:text-brand-white',
-                  ].join(' ')
-                }
-              >
-                {label}
-              </NavLink>
+              <NavLink to={to} className={navLinkClass}>{label}</NavLink>
             </li>
           ))}
         </ul>
@@ -53,17 +53,7 @@ export function Navbar() {
         <div className="flex items-center gap-3">
           {username ? (
             <>
-              <NavLink
-                to="/profil"
-                className={({ isActive }) =>
-                  [
-                    'text-sm transition-colors',
-                    isActive ? 'text-brand-white' : 'text-content-secondary hover:text-brand-white',
-                  ].join(' ')
-                }
-              >
-                {username}
-              </NavLink>
+              <span className="text-sm text-content-secondary">{username}</span>
               <button
                 type="button"
                 onClick={logout}
