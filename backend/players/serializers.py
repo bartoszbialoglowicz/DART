@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Player
+from .models import Player, TrainingSession
 
 
 class PlayerSerializer(serializers.ModelSerializer):
@@ -7,3 +7,10 @@ class PlayerSerializer(serializers.ModelSerializer):
         model  = Player
         fields = ['id', 'user_id', 'first_name', 'last_name', 'average', 'photo', 'winner_img', 'cpu', 'created_at']
         read_only_fields = ['id', 'user_id', 'created_at']
+
+
+class TrainingSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = TrainingSession
+        fields = ['id', 'played_at', 'average', 'legs', 'notes', 'created_at']
+        read_only_fields = ['id', 'created_at']

@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.conf import settings
 from django.db import models
 
@@ -18,3 +20,18 @@ class Player(models.Model):
 
     def __str__(self) -> str:
         return f'{self.first_name} {self.last_name}'
+
+
+class TrainingSession(models.Model):
+    player     = models.ForeignKey(Player, on_delete=models.CASCADE, related_name='training_sessions')
+    played_at  = models.DateField(default=date.today)
+    average    = models.FloatField()
+    legs       = models.PositiveIntegerField(default=1)
+    notes      = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-played_at', '-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.player} — {self.played_at} ({self.average})'

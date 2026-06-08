@@ -1,12 +1,12 @@
-from django.db.models import Avg, Count, Sum
+from django.db.models import Avg, Count, Max, Sum
 from django.db.models import Q
 from rest_framework import filters, permissions, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Player
-from .serializers import PlayerSerializer
+from .models import Player, TrainingSession
+from .serializers import PlayerSerializer, TrainingSessionSerializer
 
 
 class PlayerViewSet(viewsets.ModelViewSet):
@@ -75,3 +75,18 @@ class PlayerViewSet(viewsets.ModelViewSet):
                 'short_legs':       agg['total_short_legs'] or 0,
             },
         })
+
+
+class TrainingSessionViewSet(viewsets.ModelViewSet):
+    serializer_class   = TrainingSessionSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names  = ['get', 'post', 'patch', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        if not hasattr(self.request.user, 'player_profile'):
+            return TrainingSession.objects.none()
+        return TrainingSession.objects.filter(player=self.request.user.player_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(player=self.request.user.player_profile)
