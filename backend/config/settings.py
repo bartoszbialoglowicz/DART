@@ -1,10 +1,16 @@
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-ovvnpmo#6-ai&6orjhx!*=75_kzgr^hvotpjpj1d@n9qv2(=k5'
+load_dotenv(BASE_DIR.parent / '.env')
 
-DEBUG = True
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
+if not SECRET_KEY:
+    raise RuntimeError('DJANGO_SECRET_KEY environment variable is not set')
+
+DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.100.10']
 
