@@ -7,7 +7,7 @@ import { useTournaments, useCreateTournament } from '../hooks/useTournaments';
 import { useAuth } from '../context/AuthContext';
 import type { TournamentConfig } from '../types/tournament';
 
-export function TurniejePage() {
+export function TournamentsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [authOpen,  setAuthOpen]  = useState(false);
   const navigate         = useNavigate();

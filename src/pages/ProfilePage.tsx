@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useMyStats } from '../hooks/usePlayers';
 import { useTrainingSessions } from '../hooks/useTraining';
 import type { PlayerStats, TrainingSession } from '../types/player';
+import { fmtDate, fmtDateShort } from '../utils/formatting';
 
 const TrainingChart = lazy(() =>
   import('../components/profile/TrainingCharts').then(m => ({ default: m.TrainingChart }))
@@ -165,8 +166,8 @@ function ProgressSection({ sessions }: { sessions: TrainingSession[] }) {
   const filtered = filterByRange(sessions, range);
 
   const chartData = filtered.flatMap(s => {
-    if (metric === 'average') return [{ date: fmtDate(s.played_at), value: round2(s.average) }];
-    if (s.double_attempts > 0) return [{ date: fmtDate(s.played_at), value: round1(s.double_hits / s.double_attempts * 100) }];
+    if (metric === 'average') return [{ date: fmtDateShort(s.played_at), value: round2(s.average) }];
+    if (s.double_attempts > 0) return [{ date: fmtDateShort(s.played_at), value: round1(s.double_hits / s.double_attempts * 100) }];
     return [];
   });
 
@@ -343,7 +344,7 @@ function TrainingSummarySection({ sessions }: { sessions: TrainingSession[] }) {
               {best ? best.average.toFixed(2) : '—'}
             </p>
             {best && (
-              <p className="mt-1 text-[11px] text-content-secondary">{fmtDateLong(best.played_at)}</p>
+              <p className="mt-1 text-[11px] text-content-secondary">{fmtDate(best.played_at)}</p>
             )}
           </div>
 
@@ -473,16 +474,6 @@ function filterByRange(sessions: TrainingSession[], range: Range): TrainingSessi
   cutoff.setDate(cutoff.getDate() - days);
   const cutStr = cutoff.toISOString().slice(0, 10);
   return sorted.filter(s => s.played_at >= cutStr);
-}
-
-function fmtDate(iso: string): string {
-  const [, m, d] = iso.split('-');
-  return `${d}.${m}`;
-}
-
-function fmtDateLong(iso: string): string {
-  const [y, m, d] = iso.split('-');
-  return `${d}.${m}.${y}`;
 }
 
 function round2(n: number) { return Math.round(n * 100) / 100; }

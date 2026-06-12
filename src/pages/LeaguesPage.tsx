@@ -5,20 +5,10 @@ import { useLeagues, useCreateLeague } from '../hooks/useLeagues';
 import { AuthModal } from '../components/auth/AuthModal';
 import { CreateLeagueModal } from '../components/league/CreateLeagueModal';
 import type { LeaguePayload, LeagueListItem } from '../types/league';
+import { LEAGUE_STATUS_LABEL, LEAGUE_STATUS_COLOR } from '../utils/colors';
+import { fmtDate } from '../utils/formatting';
 
-const STATUS_LABEL: Record<string, string> = {
-  draft:    'Szkic',
-  active:   'Aktywna',
-  finished: 'Zakończona',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  draft:    'text-content-secondary bg-white/5 border-white/10',
-  active:   'text-green-400 bg-green-500/10 border-green-500/20',
-  finished: 'text-content-secondary bg-white/5 border-white/10',
-};
-
-export function LigePage() {
+export function LeaguesPage() {
   const { username }    = useAuth();
   const navigate        = useNavigate();
   const [modal, setModal] = useState<'create' | 'auth' | null>(null);
@@ -100,8 +90,8 @@ function LeagueCard({ league }: { league: LeagueListItem }) {
         <h2 className="text-base font-bold text-brand-white leading-snug group-hover:text-brand-purple transition-colors">
           {league.name}
         </h2>
-        <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${STATUS_COLOR[league.status]}`}>
-          {STATUS_LABEL[league.status]}
+        <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${LEAGUE_STATUS_COLOR[league.status]}`}>
+          {LEAGUE_STATUS_LABEL[league.status]}
         </span>
       </div>
 
@@ -144,7 +134,3 @@ function EmptyState({ onCreateClick, isLoggedIn }: { onCreateClick: () => void; 
   );
 }
 
-function fmtDate(iso: string) {
-  const [y, m, d] = iso.split('T')[0].split('-');
-  return `${d}.${m}.${y}`;
-}
