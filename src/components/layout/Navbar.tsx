@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/profil',   label: 'Profil',   authOnly: true },
   { to: '/solo',     label: 'Solo'     },
   { to: '/turnieje', label: 'Turnieje' },
+  { to: '/ligi',     label: 'Ligi'     },
   { to: '/rankingi', label: 'Rankingi' },
   { to: '/gracze',   label: 'Gracze'   },
 ];

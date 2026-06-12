@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ApiError } from '../../api/client';
+import { Modal } from '../ui/Modal';
 
 interface Props {
   onClose: () => void;
@@ -18,17 +19,7 @@ export function AuthModal({ onClose }: Props) {
   const [loading,  setLoading]  = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, [tab]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  useEffect(() => { inputRef.current?.focus(); }, [tab]);
 
   function switchTab(t: Tab) {
     setTab(t);
@@ -38,7 +29,7 @@ export function AuthModal({ onClose }: Props) {
     setConfirm('');
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
 
@@ -72,14 +63,8 @@ export function AuthModal({ onClose }: Props) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-2xl border border-border-subtle bg-brand-black p-8 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal size="sm" onClose={onClose} aria-labelledby="auth-modal-title">
+      <div className="p-8">
         {/* Tabs */}
         <div className="mb-7 flex rounded-lg border border-border-subtle p-1">
           {(['login', 'register'] as Tab[]).map((t) => (
@@ -109,7 +94,7 @@ export function AuthModal({ onClose }: Props) {
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
               required
-              className="rounded-lg border border-border-subtle bg-white/5 px-3 py-2 text-sm text-brand-white placeholder-content-secondary outline-none focus:border-brand-purple/60 focus:ring-1 focus:ring-brand-purple/40"
+              className="rounded-lg border border-border-subtle bg-white/5 px-3 py-2 text-sm text-brand-white outline-none focus:border-brand-purple/60 focus:ring-1 focus:ring-brand-purple/40"
             />
           </div>
 
@@ -121,7 +106,7 @@ export function AuthModal({ onClose }: Props) {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
               required
-              className="rounded-lg border border-border-subtle bg-white/5 px-3 py-2 text-sm text-brand-white placeholder-content-secondary outline-none focus:border-brand-purple/60 focus:ring-1 focus:ring-brand-purple/40"
+              className="rounded-lg border border-border-subtle bg-white/5 px-3 py-2 text-sm text-brand-white outline-none focus:border-brand-purple/60 focus:ring-1 focus:ring-brand-purple/40"
             />
           </div>
 
@@ -134,14 +119,12 @@ export function AuthModal({ onClose }: Props) {
                 onChange={(e) => setConfirm(e.target.value)}
                 autoComplete="new-password"
                 required
-                className="rounded-lg border border-border-subtle bg-white/5 px-3 py-2 text-sm text-brand-white placeholder-content-secondary outline-none focus:border-brand-purple/60 focus:ring-1 focus:ring-brand-purple/40"
+                className="rounded-lg border border-border-subtle bg-white/5 px-3 py-2 text-sm text-brand-white outline-none focus:border-brand-purple/60 focus:ring-1 focus:ring-brand-purple/40"
               />
             </div>
           )}
 
-          {error && (
-            <p className="text-xs text-red-400">{error}</p>
-          )}
+          {error && <p className="text-xs text-red-400">{error}</p>}
 
           <button
             type="submit"
@@ -152,6 +135,6 @@ export function AuthModal({ onClose }: Props) {
           </button>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 }

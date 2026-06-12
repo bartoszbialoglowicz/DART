@@ -146,6 +146,8 @@ class Tournament(models.Model):
     format      = models.CharField(max_length=20, choices=FORMAT_CHOICES)
     bracket     = models.JSONField()
     is_active   = models.BooleanField(default=True)
+    is_private  = models.BooleanField(default=False)
+    start_date  = models.DateTimeField(null=True, blank=True)
     owner       = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,

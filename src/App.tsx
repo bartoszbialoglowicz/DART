@@ -7,6 +7,8 @@ import { LiveMatchPage } from './pages/LiveMatchPage';
 import { RankingPage } from './pages/RankingPage';
 import { GraczePage } from './pages/GraczePage';
 import { ProfilePage } from './pages/ProfilePage';
+import { LigePage } from './pages/LigePage';
+import { LeagueDetailPage } from './pages/LeagueDetailPage';
 
 const router = createBrowserRouter([
   {
@@ -24,6 +26,8 @@ const router = createBrowserRouter([
       { path: 'rankingi',     element: <RankingPage />    },
       { path: 'gracze',       element: <GraczePage />     },
       { path: 'profil',       element: <ProfilePage />    },
+      { path: 'ligi',         element: <LigePage />       },
+      { path: 'ligi/:id',     element: <LeagueDetailPage /> },
     ],
   },
 ]);

@@ -13,6 +13,8 @@ export type TournamentConfig = {
   format: TournamentFormat;
   matchFormat: MatchFormat;
   players: Player[];
+  is_private: boolean;
+  start_date: string | null;
 };
 
 export const SET_OPTIONS  = [1, 3, 5, 7] as const;

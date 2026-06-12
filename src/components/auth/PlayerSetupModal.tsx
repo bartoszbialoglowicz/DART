@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { playersApi } from '../../api/players';
 import { useAuth } from '../../context/AuthContext';
+import { Modal } from '../ui/Modal';
 
 export function PlayerSetupModal() {
   const { setPlayerId } = useAuth();
@@ -9,9 +10,8 @@ export function PlayerSetupModal() {
   const [lastName,  setLastName]  = useState('');
   const [error,     setError]     = useState('');
   const [loading,   setLoading]   = useState(false);
-  const firstRef = useRef<HTMLInputElement>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -38,14 +38,15 @@ export function PlayerSetupModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-border-subtle bg-brand-black p-8 shadow-xl">
-
+    <Modal size="sm" aria-labelledby="setup-modal-title">
+      <div className="p-8">
         <div className="mb-7 text-center">
           <span className="text-xs font-medium uppercase tracking-widest text-brand-purple">
             Jeszcze jeden krok
           </span>
-          <h2 className="mt-2 text-xl font-bold text-brand-white">Utwórz profil gracza</h2>
+          <h2 id="setup-modal-title" className="mt-2 text-xl font-bold text-brand-white">
+            Utwórz profil gracza
+          </h2>
           <p className="mt-2 text-xs leading-relaxed text-content-secondary">
             Twoje imię i nazwisko będą widoczne w turniejach i rankingach.
           </p>
@@ -55,7 +56,6 @@ export function PlayerSetupModal() {
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-content-secondary">Imię</label>
             <input
-              ref={firstRef}
               type="text"
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
@@ -89,6 +89,6 @@ export function PlayerSetupModal() {
           </button>
         </form>
       </div>
-    </div>
+    </Modal>
   );
 }

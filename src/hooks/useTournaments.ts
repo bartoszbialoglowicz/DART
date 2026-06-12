@@ -38,7 +38,11 @@ export function useTournamentStatistics(id: number, refetchInterval?: number) {
 export function useCreateTournament() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (bracket: BracketData) => tournamentsApi.create(bracket),
+    mutationFn: ({ bracket, is_private, start_date }: {
+      bracket:    BracketData;
+      is_private: boolean;
+      start_date: string | null;
+    }) => tournamentsApi.create(bracket, { is_private, start_date }),
     onSuccess: () => qc.invalidateQueries({ queryKey: tournamentKeys.list() }),
   });
 }

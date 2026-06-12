@@ -20,9 +20,10 @@ export function TurniejePage() {
   function handleCreate(config: TournamentConfig) {
     const bracket = generateBracket(config);
     setModalOpen(false);
-    createTournament.mutate(bracket, {
-      onSuccess: (saved) => navigate(`/turnieje/${saved.id}`),
-    });
+    createTournament.mutate(
+      { bracket, is_private: config.is_private, start_date: config.start_date },
+      { onSuccess: (saved) => navigate(`/turnieje/${saved.id}`) },
+    );
   }
 
   function handleCreateClick() {

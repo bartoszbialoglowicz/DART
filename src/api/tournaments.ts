@@ -7,6 +7,8 @@ export interface Tournament {
   format: string;
   bracket: BracketData;
   is_active: boolean;
+  is_private: boolean;
+  start_date: string | null;
   owner_username: string | null;
   created_at: string;
   updated_at: string;
@@ -73,11 +75,13 @@ export const tournamentsApi = {
     return client.get<TournamentServer>(`/tournaments/${id}/`).then(mergeLegsIntoBracket);
   },
 
-  create(bracket: BracketData) {
+  create(bracket: BracketData, meta: { is_private: boolean; start_date: string | null }) {
     return client.post<TournamentServer>('/tournaments/', {
-      name: bracket.name,
-      format: bracket.format,
-      bracket: stripLegsFromBracket(bracket),
+      name:       bracket.name,
+      format:     bracket.format,
+      bracket:    stripLegsFromBracket(bracket),
+      is_private: meta.is_private,
+      start_date: meta.start_date,
     }).then(mergeLegsIntoBracket);
   },
 
