@@ -68,7 +68,7 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
   const editHasSubsequent = editTarget !== null && rounds.slice(editTarget.roundIdx + 1).some(
     r => editTarget.player === 0 ? !!r.p0 : !!r.p1
   );
-  const effectiveMax      = editTarget !== null ? editMaxScore : currentRemaining;
+  const effectiveMax      = Math.min(editTarget !== null ? editMaxScore : currentRemaining, 180);
   const isOverMax         = input !== '' && inputNum > effectiveMax;
   const editWouldCheckout = editTarget !== null && input !== '' && inputNum === editMaxScore && editHasSubsequent;
   const canConfirm        = input !== '' && !isOverMax && !editWouldCheckout;
