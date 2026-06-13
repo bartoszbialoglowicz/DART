@@ -1,40 +1,25 @@
 import { useState } from 'react';
-import { ApiError } from '../../api/client';
 import { playersApi } from '../../api/players';
 import { useAuth } from '../../context/AuthContext';
 import { Modal } from '../ui/Modal';
+import { useFormModal } from '../../hooks/useFormModal';
 
 export function PlayerSetupModal() {
   const { setPlayerId } = useAuth();
+  const { error, isPending, submit } = useFormModal();
+
   const [firstName, setFirstName] = useState('');
   const [lastName,  setLastName]  = useState('');
-  const [error,     setError]     = useState('');
-  const [loading,   setLoading]   = useState(false);
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
+    await submit(async () => {
       const player = await playersApi.setupProfile({
         first_name: firstName.trim(),
         last_name:  lastName.trim(),
       });
       setPlayerId(player.id);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        try {
-          const body = JSON.parse(err.message);
-          setError(body.error ?? err.message);
-        } catch {
-          setError(err.message);
-        }
-      } else {
-        setError('Błąd połączenia.');
-      }
-    } finally {
-      setLoading(false);
-    }
+    });
   }
 
   return (
@@ -82,10 +67,10 @@ export function PlayerSetupModal() {
 
           <button
             type="submit"
-            disabled={loading || !firstName.trim() || !lastName.trim()}
+            disabled={isPending || !firstName.trim() || !lastName.trim()}
             className="mt-1 rounded-lg bg-brand-purple/80 py-2.5 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple disabled:opacity-50"
           >
-            {loading ? '...' : 'Zapisz profil'}
+            {isPending ? '...' : 'Zapisz profil'}
           </button>
         </form>
       </div>

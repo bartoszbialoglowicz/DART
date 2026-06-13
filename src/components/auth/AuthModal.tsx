@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ApiError } from '../../api/client';
 import { Modal } from '../ui/Modal';
+import { useFormModal } from '../../hooks/useFormModal';
 
 interface Props {
   onClose: () => void;
@@ -11,12 +11,12 @@ type Tab = 'login' | 'register';
 
 export function AuthModal({ onClose }: Props) {
   const { login, register } = useAuth();
-  const [tab, setTab]           = useState<Tab>('login');
+  const { error, isPending, submit, setError } = useFormModal();
+
+  const [tab,      setTab]      = useState<Tab>('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirm,  setConfirm]  = useState('');
-  const [error,    setError]    = useState('');
-  const [loading,  setLoading]  = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, [tab]);
@@ -29,37 +29,17 @@ export function AuthModal({ onClose }: Props) {
     setConfirm('');
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
-    setError('');
-
     if (tab === 'register' && password !== confirm) {
       setError('Hasła nie są zgodne.');
       return;
     }
-
-    setLoading(true);
-    try {
-      if (tab === 'login') {
-        await login(username, password);
-      } else {
-        await register(username, password);
-      }
+    await submit(async () => {
+      if (tab === 'login') await login(username, password);
+      else                 await register(username, password);
       onClose();
-    } catch (err) {
-      if (err instanceof ApiError) {
-        try {
-          const body = JSON.parse(err.message);
-          setError(body.error ?? err.message);
-        } catch {
-          setError(err.message);
-        }
-      } else {
-        setError('Błąd połączenia.');
-      }
-    } finally {
-      setLoading(false);
-    }
+    });
   }
 
   return (
@@ -128,10 +108,10 @@ export function AuthModal({ onClose }: Props) {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={isPending}
             className="mt-1 rounded-lg bg-brand-purple/80 py-2 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple disabled:opacity-50"
           >
-            {loading ? '...' : tab === 'login' ? 'Zaloguj się' : 'Zarejestruj się'}
+            {isPending ? '...' : tab === 'login' ? 'Zaloguj się' : 'Zarejestruj się'}
           </button>
         </form>
       </div>
