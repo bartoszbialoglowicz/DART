@@ -9,6 +9,7 @@ import { PlayersPage } from './pages/PlayersPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { LeaguesPage } from './pages/LeaguesPage';
 import { LeagueDetailPage } from './pages/LeagueDetailPage';
+import { HubPage } from './pages/HubPage';
 
 const router = createBrowserRouter([
   {
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
       { path: 'profil',       element: <ProfilePage />    },
       { path: 'ligi',         element: <LeaguesPage />    },
       { path: 'ligi/:id',     element: <LeagueDetailPage /> },
+      { path: 'hub',          element: <HubPage /> },
     ],
   },
 ]);

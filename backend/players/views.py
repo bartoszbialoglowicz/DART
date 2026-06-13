@@ -15,11 +15,19 @@ class PlayerViewSet(viewsets.ModelViewSet):
     search_fields    = ['first_name', 'last_name']
     ordering_fields  = ['last_name', 'average', 'created_at']
 
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [permissions.IsAuthenticated()]
+        return [permissions.AllowAny()]
+
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
             return Player.objects.filter(Q(cpu=False) | Q(owner=user, cpu=True))
         return Player.objects.filter(cpu=False)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
 
     @action(
         detail=False,

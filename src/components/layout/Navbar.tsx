@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/ligi',     label: 'Ligi'     },
   { to: '/rankingi', label: 'Rankingi' },
   { to: '/gracze',   label: 'Gracze'   },
+  { to: '/hub',      label: 'Hub',      authOnly: true },
 ];
 
 const desktopLinkClass = ({ isActive }: { isActive: boolean }) =>
