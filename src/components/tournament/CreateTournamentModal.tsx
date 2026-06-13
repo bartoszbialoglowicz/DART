@@ -34,7 +34,7 @@ export function CreateTournamentModal({ onConfirm, onClose }: Props) {
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, isError } = usePlayers();
-  const allPlayers: Player[] = data?.results ?? [];
+  const allPlayers: Player[] = data ?? [];
 
   useEffect(() => {
     if (step === 'config') firstInputRef.current?.focus();
@@ -48,7 +48,7 @@ export function CreateTournamentModal({ onConfirm, onClose }: Props) {
     setPlayerCount((next === 'knockout' ? KNOCKOUT_PLAYER_COUNTS : GROUP_PLAYER_COUNTS)[1]);
   }
 
-  function handleConfigSubmit(e: React.FormEvent<HTMLFormElement>) {
+  function handleConfigSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
     if (!name.trim()) return;
     setSelectedIds(new Set());

@@ -15,6 +15,7 @@ export function usePlayers(params?: Parameters<typeof playersApi.list>[0]) {
   });
 }
 
+
 export function usePlayer(id: number) {
   return useQuery({
     queryKey: playerKeys.detail(id),

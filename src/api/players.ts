@@ -24,7 +24,15 @@ function hasFile(payload: PlayerPayload): boolean {
 }
 
 export const playersApi = {
-  list(params?: { search?: string; ordering?: string; page?: number }) {
+  list(params?: { search?: string; ordering?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.search)   qs.set('search',   params.search);
+    if (params?.ordering) qs.set('ordering', params.ordering);
+    const query = qs.size ? `?${qs}` : '';
+    return client.get<PaginatedResponse<Player>>(`/players/${query}`).then(r => r.results);
+  },
+
+  listPaginated(params?: { search?: string; ordering?: string; page?: number }) {
     const qs = new URLSearchParams();
     if (params?.search)   qs.set('search',   params.search);
     if (params?.ordering) qs.set('ordering', params.ordering);

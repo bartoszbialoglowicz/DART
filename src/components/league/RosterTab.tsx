@@ -26,7 +26,7 @@ export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: bo
   const [linkSearch, setLinkSearch]             = useState('');
   const [pendingLink, setPendingLink]           = useState<PendingLink | null>(null);
 
-  const allPlayers: Player[]  = playersData?.results ?? [];
+  const allPlayers: Player[]  = playersData ?? [];
   const members               = league?.members ?? [];
   const memberPlayerIds       = new Set(members.map(m => m.player_id).filter(Boolean));
 
