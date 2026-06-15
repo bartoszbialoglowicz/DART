@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useBlocker } from 'react-router-dom';
 import { LiveMatchScreen } from '../components/bracket/LiveMatchScreen';
 import { CheckoutsGame } from '../components/solo/CheckoutsGame';
 import { SKILL_LEVELS, type SkillLevel } from '../utils/dart501';
@@ -16,6 +17,36 @@ interface SoloConfig {
   guestName?:  string;
   matchFormat: MatchFormat;
 }
+
+// ── Session persistence ───────────────────────────────────────────────────────
+
+const SOLO_SESSION_KEY = 'dart:solo-session';
+
+type SoloSession = {
+  activeMode:    'vs-cpu' | 'vs-guest';
+  soloConfig:    SoloConfig;
+  completedLegs: LegRecord[];
+  currentLeg:    { rounds: LegRound[]; activePlayer: 0 | 1 } | null;
+};
+
+function loadSession(): SoloSession | null {
+  try {
+    const raw = localStorage.getItem(SOLO_SESSION_KEY);
+    return raw ? (JSON.parse(raw) as SoloSession) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(s: SoloSession): void {
+  try { localStorage.setItem(SOLO_SESSION_KEY, JSON.stringify(s)); } catch {}
+}
+
+function clearSession(): void {
+  localStorage.removeItem(SOLO_SESSION_KEY);
+}
+
+// ── Mode catalogue ────────────────────────────────────────────────────────────
 
 const MODES = [
   {
@@ -84,23 +115,72 @@ const MODES = [
   },
 ];
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export function SoloPage() {
   const [activeMode,    setActiveMode]    = useState<ActiveMode>(null);
   const [soloConfig,    setSoloConfig]    = useState<SoloConfig | null>(null);
   const [checkoutsMode, setCheckoutsMode] = useState<CheckoutsMode | null>(null);
+  const [savedSession,  setSavedSession]  = useState<SoloSession | null>(() => loadSession());
 
   const completedLegsRef   = useRef<LegRecord[]>([]);
+  const currentLegRef      = useRef<{ rounds: LegRound[]; activePlayer: 0 | 1 } | null>(null);
   const addTrainingSession = useAddTrainingSession();
 
+  // Block router navigation while a 501 game is active in the UI
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      soloConfig !== null && currentLocation.pathname !== nextLocation.pathname
+  );
+
+  // Called when the user confirms game setup and the match begins
+  function startSession(config: SoloConfig) {
+    completedLegsRef.current = [];
+    currentLegRef.current    = null;
+    const mode = activeMode as 'vs-cpu' | 'vs-guest';
+    saveSession({ activeMode: mode, soloConfig: config, completedLegs: [], currentLeg: null });
+    setSoloConfig(config);
+  }
+
+  // Resume a previously saved session
+  function resumeSession() {
+    if (!savedSession) return;
+    completedLegsRef.current = savedSession.completedLegs;
+    currentLegRef.current    = savedSession.currentLeg;
+    setSavedSession(null);
+    setSoloConfig(savedSession.soloConfig);
+    setActiveMode(savedSession.activeMode);
+  }
+
+  // Discard saved session (user explicitly chooses not to resume)
+  function dismissSession() {
+    clearSession();
+    setSavedSession(null);
+  }
+
+  // Exit game without clearing localStorage so the session survives for resume
   function handleBack() {
     setSoloConfig(null);
     setActiveMode(null);
     setCheckoutsMode(null);
     completedLegsRef.current = [];
+    currentLegRef.current    = null;
+    setSavedSession(loadSession()); // refresh banner
   }
 
   function handleLegComplete(legs: LegRecord[], _rounds: LegRound[], _active: 0 | 1) {
     completedLegsRef.current = legs;
+    currentLegRef.current    = null;
+    if (soloConfig && (activeMode === 'vs-cpu' || activeMode === 'vs-guest')) {
+      saveSession({ activeMode, soloConfig, completedLegs: legs, currentLeg: null });
+    }
+  }
+
+  function handleScoreEntered(rounds: LegRound[], activePlayer: 0 | 1) {
+    currentLegRef.current = { rounds, activePlayer };
+    if (soloConfig && (activeMode === 'vs-cpu' || activeMode === 'vs-guest')) {
+      saveSession({ activeMode, soloConfig, completedLegs: completedLegsRef.current, currentLeg: { rounds, activePlayer } });
+    }
   }
 
   function handleSoloResult() {
@@ -117,54 +197,70 @@ export function SoloPage() {
         });
       }
     }
+    clearSession();
+    setSavedSession(null);
     handleBack();
   }
 
-  // ── Active game ──────────────────────────────────────────────────
+  // ── Active 501 games ───────────────────────────────────────────────────────
+
   if (activeMode === 'vs-cpu' && soloConfig?.difficulty) {
     const match: BracketMatch = {
-      id: 'solo-cpu',
-      top:    { playerId: null, playerName: 'Ty',                          playerAvg: null, isCpu: false },
-      bottom: { playerId: null, playerName: soloConfig.difficulty.label,   playerAvg: null, isCpu: true, cpuSigma: soloConfig.difficulty.sigma },
+      id:         'solo-cpu',
+      top:        { playerId: null, playerName: 'Ty',                        playerAvg: null, isCpu: false },
+      bottom:     { playerId: null, playerName: soloConfig.difficulty.label, playerAvg: null, isCpu: true, cpuSigma: soloConfig.difficulty.sigma },
+      legs:       completedLegsRef.current.length > 0 ? completedLegsRef.current : undefined,
+      currentLeg: currentLegRef.current ?? undefined,
     };
     return (
-      <LiveMatchScreen
-        match={match}
-        matchFormat={soloConfig.matchFormat}
-        isOwner={true}
-        onClose={handleBack}
-        onLegComplete={handleLegComplete}
-        onResult={handleSoloResult}
-      />
+      <>
+        <LiveMatchScreen
+          match={match}
+          matchFormat={soloConfig.matchFormat}
+          isOwner={true}
+          onClose={handleBack}
+          onLegComplete={handleLegComplete}
+          onScoreEntered={handleScoreEntered}
+          onResult={handleSoloResult}
+        />
+        <BlockerDialog blocker={blocker} />
+      </>
     );
   }
 
   if (activeMode === 'vs-guest' && soloConfig) {
     const guestName = soloConfig.guestName?.trim() || 'Gość';
     const match: BracketMatch = {
-      id: 'solo-guest',
-      top:    { playerId: null, playerName: 'Ty',       playerAvg: null, isCpu: false },
-      bottom: { playerId: null, playerName: guestName,  playerAvg: null, isCpu: false },
+      id:         'solo-guest',
+      top:        { playerId: null, playerName: 'Ty',      playerAvg: null, isCpu: false },
+      bottom:     { playerId: null, playerName: guestName, playerAvg: null, isCpu: false },
+      legs:       completedLegsRef.current.length > 0 ? completedLegsRef.current : undefined,
+      currentLeg: currentLegRef.current ?? undefined,
     };
     return (
-      <LiveMatchScreen
-        match={match}
-        matchFormat={soloConfig.matchFormat}
-        isOwner={true}
-        onClose={handleBack}
-        onLegComplete={handleLegComplete}
-        onResult={handleSoloResult}
-      />
+      <>
+        <LiveMatchScreen
+          match={match}
+          matchFormat={soloConfig.matchFormat}
+          isOwner={true}
+          onClose={handleBack}
+          onLegComplete={handleLegComplete}
+          onScoreEntered={handleScoreEntered}
+          onResult={handleSoloResult}
+        />
+        <BlockerDialog blocker={blocker} />
+      </>
     );
   }
 
-  // ── Game setup ───────────────────────────────────────────────────
+  // ── Setup screens ──────────────────────────────────────────────────────────
+
   if (activeMode === 'vs-cpu') {
-    return <VsCpuSetup onStart={setSoloConfig} onBack={handleBack} />;
+    return <VsCpuSetup onStart={startSession} onBack={handleBack} />;
   }
 
   if (activeMode === 'vs-guest') {
-    return <VsGuestSetup onStart={setSoloConfig} onBack={handleBack} />;
+    return <VsGuestSetup onStart={startSession} onBack={handleBack} />;
   }
 
   if (activeMode === 'checkouts' && checkoutsMode) {
@@ -175,10 +271,45 @@ export function SoloPage() {
     return <CheckoutsSetup onStart={setCheckoutsMode} onBack={handleBack} />;
   }
 
-  // ── Mode selection ───────────────────────────────────────────────
+  // ── Mode selection ─────────────────────────────────────────────────────────
+
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-8">
       <h1 className="mb-6 text-lg font-semibold text-brand-white">Tryb solo</h1>
+
+      {savedSession && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-brand-purple/30 bg-brand-purple/5 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-brand-white">Wznów poprzednią grę</p>
+            <p className="mt-0.5 truncate text-xs text-content-secondary">
+              {savedSession.activeMode === 'vs-cpu' ? '501 vs CPU' : 'vs Gość'}
+              {savedSession.completedLegs.length > 0 && (
+                <> · {savedSession.completedLegs.length} {savedSession.completedLegs.length === 1 ? 'leg' : 'legi'} ukończone</>
+              )}
+              {savedSession.currentLeg && savedSession.currentLeg.rounds.length > 0 && (
+                <> · leg w toku</>
+              )}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={dismissSession}
+              className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-content-secondary transition-colors hover:text-brand-white"
+            >
+              Porzuć
+            </button>
+            <button
+              type="button"
+              onClick={resumeSession}
+              className="rounded-lg bg-brand-purple px-3 py-1.5 text-xs font-semibold text-brand-white transition-colors hover:bg-brand-purple/80"
+            >
+              Wznów
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {MODES.map((mode) => (
           <button
@@ -200,6 +331,38 @@ export function SoloPage() {
             )}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Blocker dialog ────────────────────────────────────────────────────────────
+
+function BlockerDialog({ blocker }: { blocker: ReturnType<typeof useBlocker> }) {
+  if (blocker.state !== 'blocked') return null;
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 px-6">
+      <div className="w-full max-w-xs rounded-2xl border border-border-subtle bg-brand-black p-6">
+        <p className="text-base font-semibold text-brand-white">Opuścić grę?</p>
+        <p className="mt-2 text-sm leading-relaxed text-content-secondary">
+          Postęp jest zapisany — możesz wrócić do tej gry z menu Solo.
+        </p>
+        <div className="mt-6 flex gap-3">
+          <button
+            type="button"
+            onClick={() => blocker.reset?.()}
+            className="flex-1 rounded-xl border border-border-subtle py-3 text-sm font-medium text-content-secondary transition-colors hover:text-brand-white"
+          >
+            Zostań
+          </button>
+          <button
+            type="button"
+            onClick={() => blocker.proceed?.()}
+            className="flex-1 rounded-xl bg-brand-purple py-3 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple/80"
+          >
+            Opuść
+          </button>
+        </div>
       </div>
     </div>
   );
