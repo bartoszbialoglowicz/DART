@@ -76,7 +76,7 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
   const activeSlot = activePlayer === 0 ? top : bottom;
   const isCpuTurn  = phase === 'playing' && activeSlot.isCpu;
 
-  const canToggleStart = isOwner && phase === 'playing' && rounds.length === 0 && input === '' && editTarget === null;
+  const canToggleStart = isOwner && phase === 'playing' && completedLegs.length === 0 && rounds.length === 0 && input === '' && editTarget === null;
 
   const lastRound = rounds[rounds.length - 1];
   const p0Pending = editTarget === null && activePlayer === 0 && input !== '';

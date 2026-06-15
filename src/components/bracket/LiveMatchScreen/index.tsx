@@ -127,22 +127,22 @@ export function LiveMatchScreen(props: Props) {
 
             return (
               <div key={i} className={`flex items-center border-b border-border-subtle/20 ${isEditRow ? 'bg-brand-purple/10' : ''}`}>
-                <div className="flex flex-1 items-center justify-between px-3 py-2.5">
+                <div
+                  className={[
+                    'flex flex-1 items-center justify-between px-3 py-2.5',
+                    canEdit && round.p0 ? 'cursor-pointer active:bg-brand-purple/10' : '',
+                  ].join(' ')}
+                  onPointerDown={canEdit && round.p0 ? (e) => { e.preventDefault(); openEdit(i, 0); } : undefined}
+                >
                   {round.p0 && (
                     <>
-                      <button
-                        type="button"
-                        disabled={!canEdit}
-                        onPointerDown={(e) => { e.preventDefault(); openEdit(i, 0); }}
-                        className={[
-                          'bg-transparent border-0 p-0 text-base font-semibold tabular-nums',
-                          isEditRow && editTarget?.player === 0 ? 'text-brand-purple' : 'text-brand-white',
-                          canEdit ? 'cursor-pointer hover:text-brand-purple' : 'cursor-default',
-                        ].join(' ')}
-                      >
+                      <span className={[
+                        'text-xl font-semibold tabular-nums',
+                        isEditRow && editTarget?.player === 0 ? 'text-brand-purple' : 'text-brand-white',
+                      ].join(' ')}>
                         {round.p0.score}
-                      </button>
-                      <span className="text-base tabular-nums text-content-secondary">
+                      </span>
+                      <span className="text-xl tabular-nums text-content-secondary">
                         {round.p0.remaining}
                       </span>
                     </>
@@ -150,27 +150,27 @@ export function LiveMatchScreen(props: Props) {
                 </div>
 
                 <div className="w-14 shrink-0 border-x border-border-subtle flex items-center justify-center py-2.5">
-                  <span className="text-sm tabular-nums text-content-secondary">{darts}</span>
+                  <span className="text-base tabular-nums text-content-secondary">{darts}</span>
                 </div>
 
-                <div className="flex flex-1 items-center justify-between px-3 py-2.5">
+                <div
+                  className={[
+                    'flex flex-1 items-center justify-between px-3 py-2.5',
+                    canEdit && round.p1 ? 'cursor-pointer active:bg-brand-purple/10' : '',
+                  ].join(' ')}
+                  onPointerDown={canEdit && round.p1 ? (e) => { e.preventDefault(); openEdit(i, 1); } : undefined}
+                >
                   {round.p1 ? (
                     <>
-                      <span className="text-base tabular-nums text-content-secondary">
+                      <span className="text-xl tabular-nums text-content-secondary">
                         {round.p1.remaining}
                       </span>
-                      <button
-                        type="button"
-                        disabled={!canEdit}
-                        onPointerDown={(e) => { e.preventDefault(); openEdit(i, 1); }}
-                        className={[
-                          'bg-transparent border-0 p-0 text-base font-semibold tabular-nums',
-                          isEditRow && editTarget?.player === 1 ? 'text-brand-purple' : 'text-brand-white',
-                          canEdit ? 'cursor-pointer hover:text-brand-purple' : 'cursor-default',
-                        ].join(' ')}
-                      >
+                      <span className={[
+                        'text-xl font-semibold tabular-nums',
+                        isEditRow && editTarget?.player === 1 ? 'text-brand-purple' : 'text-brand-white',
+                      ].join(' ')}>
                         {round.p1.score}
-                      </button>
+                      </span>
                     </>
                   ) : showP1Preview ? (
                     <>
