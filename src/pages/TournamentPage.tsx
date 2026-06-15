@@ -24,9 +24,10 @@ export function TournamentPage() {
   const isOwner          = !!username && username === tournament?.owner_username;
   const isMutating       = useIsMutating();
 
-  const [bracket, setBracket] = useState<BracketData | null>(null);
-  const [tab,     setTab]     = useState<Tab>('bracket');
-  const initialized           = useRef(false);
+  const [bracket,   setBracket]   = useState<BracketData | null>(null);
+  const [tab,       setTab]       = useState<Tab>('bracket');
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const initialized                 = useRef(false);
 
   useEffect(() => {
     if (!tournament) return;
@@ -56,7 +57,10 @@ export function TournamentPage() {
       [top.playerName ?? 'Gracz 1', bottom.playerName ?? 'Gracz 2'],
       [top.playerId ?? null,         bottom.playerId ?? null],
     );
-    statisticsApi.save(tournamentId, stats).catch(console.error);
+    statisticsApi.save(tournamentId, stats).catch((err) => {
+      console.error('Błąd zapisu statystyk:', err);
+      setStatsError('Nie udało się zapisać statystyk dla jednego z meczy. Sprawdź konsolę po szczegóły.');
+    });
   }
 
   // ── Knockout ────────────────────────────────────────────────
@@ -142,6 +146,19 @@ export function TournamentPage() {
           Wróć do listy
         </button>
       </div>
+
+      {statsError && (
+        <div className="flex items-center justify-between gap-4 border-b border-red-500/30 bg-red-500/10 px-8 py-2">
+          <p className="text-xs text-red-400">{statsError}</p>
+          <button
+            type="button"
+            onClick={() => setStatsError(null)}
+            className="shrink-0 text-xs text-red-400/70 hover:text-red-400"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div className="flex shrink-0 gap-6 border-b border-border-subtle px-8">
         {(['bracket', 'stats'] as Tab[]).map((t) => (

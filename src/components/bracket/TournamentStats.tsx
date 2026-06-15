@@ -32,8 +32,11 @@ function aggregate(records: StatisticRecord[]): PlayerRow[] {
 type Winner = { name: string; playerId: number | null };
 
 function findWinner(bracket: BracketData): Winner | null {
-  if (bracket.format !== 'knockout') return null;
-  const lastRound = bracket.rounds[bracket.rounds.length - 1];
+  const rounds =
+    bracket.format === 'knockout'
+      ? bracket.rounds
+      : bracket.playoff?.rounds ?? [];
+  const lastRound = rounds[rounds.length - 1];
   if (!lastRound) return null;
   const final = lastRound.matches[0];
   if (!final?.result) return null;

@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -57,31 +58,43 @@ class TournamentViewSet(viewsets.ModelViewSet):
 
         items = request.data if isinstance(request.data, list) else []
         saved = []
-        for item in items:
-            match_id    = item.get('match_id', '')
-            player_name = item.get('player_name', '')
-            player_id   = item.get('player_id') or None
-            if not match_id or not player_name:
-                continue
 
-            if player_id:
-                lookup   = {'tournament': tournament, 'match_id': match_id, 'player_id': player_id}
-                defaults = {'player_name': player_name}
-            else:
-                lookup   = {'tournament': tournament, 'match_id': match_id, 'player_name': player_name, 'player': None}
-                defaults = {}
+        with transaction.atomic():
+            for item in items:
+                match_id    = item.get('match_id', '')
+                player_name = item.get('player_name', '')
+                player_id   = item.get('player_id') or None
+                if not match_id or not player_name:
+                    continue
 
-            defaults.update({
-                'match_average':   item.get('match_average', 0),
-                'count_180':       item.get('count_180', 0),
-                'high_checkouts':  item.get('high_checkouts', 0),
-                'short_legs':      item.get('short_legs', 0),
-                'double_attempts': item.get('double_attempts', 0),
-                'double_hits':     item.get('double_hits', 0),
-                'darts_per_leg':   item.get('darts_per_leg', 0),
-            })
+                stat_defaults = {
+                    'match_average':   item.get('match_average', 0),
+                    'count_180':       item.get('count_180', 0),
+                    'high_checkouts':  item.get('high_checkouts', 0),
+                    'short_legs':      item.get('short_legs', 0),
+                    'double_attempts': item.get('double_attempts', 0),
+                    'double_hits':     item.get('double_hits', 0),
+                    'darts_per_leg':   item.get('darts_per_leg', 0),
+                }
 
-            obj, _ = MatchStatistic.objects.update_or_create(**lookup, defaults=defaults)
-            saved.append(obj)
+                if player_id:
+                    # Remove any orphan record saved earlier without player_id for
+                    # the same (tournament, match_id, player_name) to avoid the
+                    # unique-constraint gap where both a FK record and a name-only
+                    # record can coexist for the same logical player+match.
+                    MatchStatistic.objects.filter(
+                        tournament=tournament,
+                        match_id=match_id,
+                        player_name=player_name,
+                        player__isnull=True,
+                    ).delete()
+                    lookup   = {'tournament': tournament, 'match_id': match_id, 'player_id': player_id}
+                    defaults = {'player_name': player_name, **stat_defaults}
+                else:
+                    lookup   = {'tournament': tournament, 'match_id': match_id, 'player_name': player_name, 'player': None}
+                    defaults = stat_defaults
+
+                obj, _ = MatchStatistic.objects.update_or_create(**lookup, defaults=defaults)
+                saved.append(obj)
 
         return Response(MatchStatisticSerializer(saved, many=True).data)
