@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint:ui": "node scripts/lint-ui.mjs",
+    "lint:ui:strict": "node scripts/lint-ui.mjs --strict"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.14",
