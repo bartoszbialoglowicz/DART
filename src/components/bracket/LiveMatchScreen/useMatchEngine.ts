@@ -269,7 +269,7 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
     // actions
     pressDigit, pressClear, confirmScore, applyScore,
     setStartPlayer, startNext, finishMatch,
-    setEditTarget, setDoubleModalPending,
+    setEditTarget, setInput, setDoubleModalPending,
     openEdit,
   };
 }

@@ -17,7 +17,7 @@ type Props = {
 };
 
 export function LiveMatchScreen(props: Props) {
-  const { match, matchFormat, isOwner, onClose, onResult } = props;
+  const { match, isOwner, onClose } = props;
   const { top, bottom } = match;
 
   const engine = useMatchEngine(props);
@@ -32,7 +32,7 @@ export function LiveMatchScreen(props: Props) {
     bottomRef,
     pressDigit, pressClear, confirmScore, applyScore,
     setStartPlayer, startNext, finishMatch,
-    setEditTarget, setDoubleModalPending, openEdit,
+    setEditTarget, setInput, setDoubleModalPending, openEdit,
   } = engine;
 
   const playerName = (idx: 0 | 1) =>
