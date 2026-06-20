@@ -10,7 +10,6 @@ import { fmtDate } from '../../utils/formatting';
 import { ScheduleAutofillModal, type RoundInfo } from './ScheduleAutofillModal';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
-import { cn } from '../ui/cn';
 
 type Props = {
   leagueId:        number;
