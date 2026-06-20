@@ -8,10 +8,10 @@ import {
   YAxis,
 } from 'recharts';
 
-const GRID_COLOR     = 'rgba(255,255,255,0.06)';
-const AXIS_COLOR     = '#a3a3a3';
-const TOOLTIP_BG     = '#111111';
-const TOOLTIP_BORDER = 'rgba(172,88,233,0.25)';
+const GRID_COLOR     = 'var(--color-border-subtle)';
+const AXIS_COLOR     = 'var(--color-content-secondary)';
+const TOOLTIP_BG     = 'var(--color-surface-overlay)';
+const TOOLTIP_BORDER = 'var(--color-border-subtle)';
 
 interface Props {
   data:    { date: string; value: number }[];
@@ -74,7 +74,7 @@ function ChartTooltip({ active, payload, label, unit }: {
     <div style={{ background: TOOLTIP_BG, border: `1px solid ${TOOLTIP_BORDER}` }}
          className="rounded-lg px-3 py-2 text-xs shadow-xl">
       <p className="text-content-secondary mb-0.5">{label}</p>
-      <p className="font-bold text-brand-white">{payload[0].value}{unit}</p>
+      <p className="font-bold text-content-primary">{payload[0].value}{unit}</p>
     </div>
   );
 }

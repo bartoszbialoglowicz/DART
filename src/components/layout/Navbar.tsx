@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AuthModal } from '../auth/AuthModal';
+import { Button } from '../ui/Button';
 
 type NavItem = {
   to: string;
@@ -22,18 +23,18 @@ const NAV_ITEMS: NavItem[] = [
 const desktopLinkClass = ({ isActive }: { isActive: boolean }) =>
   [
     'relative px-5 py-2 text-sm font-medium tracking-wide transition-colors duration-200',
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-purple rounded-sm',
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content-accent rounded-sm',
     isActive
-      ? 'text-brand-white after:absolute after:inset-x-3 after:-bottom-[1px] after:h-[2px] after:rounded-full after:bg-brand-purple'
-      : 'text-content-secondary hover:text-brand-white',
+      ? 'text-content-primary after:absolute after:inset-x-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-content-accent'
+      : 'text-content-secondary hover:text-content-primary',
   ].join(' ');
 
 const mobileLinkClass = ({ isActive }: { isActive: boolean }) =>
   [
     'block rounded-lg px-4 py-3 text-base font-medium transition-colors',
     isActive
-      ? 'bg-brand-purple/15 text-brand-white'
-      : 'text-content-secondary hover:bg-white/5 hover:text-brand-white',
+      ? 'bg-surface-muted text-content-primary'
+      : 'text-content-secondary hover:bg-surface-muted hover:text-content-primary',
   ].join(' ');
 
 export function Navbar() {
@@ -69,13 +70,13 @@ export function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-border-subtle bg-brand-black">
+      <header className="sticky top-0 z-50 border-b border-border-subtle bg-surface-base">
         <nav
           className="mx-auto flex h-16 max-w-screen-xl items-center justify-between px-6"
           aria-label="Nawigacja główna"
         >
           {/* Logo */}
-          <span className="text-lg font-bold tracking-widest text-brand-white uppercase select-none">
+          <span className="select-none text-lg font-bold uppercase tracking-widest text-content-primary">
             DART
           </span>
 
@@ -93,33 +94,23 @@ export function Navbar() {
             {username ? (
               <>
                 <span className="text-sm text-content-secondary">{username}</span>
-                <button
-                  type="button"
-                  onClick={logout}
-                  className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-content-secondary transition-colors hover:border-brand-white/30 hover:text-brand-white"
-                >
-                  Wyloguj
-                </button>
+                <Button variant="secondary" size="sm" onClick={logout}>Wyloguj</Button>
               </>
             ) : (
-              <button
-                type="button"
-                onClick={() => setAuthOpen(true)}
-                className="rounded-lg border border-brand-purple/50 px-3 py-1.5 text-xs font-medium text-brand-white transition-colors hover:bg-brand-purple/10"
-              >
+              <Button variant="primary" size="sm" onClick={() => setAuthOpen(true)}>
                 Zaloguj się
-              </button>
+              </Button>
             )}
           </div>
 
-          {/* Mobile hamburger */}
+          {/* Mobile hamburger — no IconButton primitive; raw button with semantic tokens */}
           <button
             type="button"
             aria-label={menuOpen ? 'Zamknij menu' : 'Otwórz menu'}
             aria-expanded={menuOpen}
             aria-controls="mobile-menu"
             onClick={() => setMenuOpen(o => !o)}
-            className="flex md:hidden items-center justify-center rounded-lg p-2 text-content-secondary transition-colors hover:bg-white/5 hover:text-brand-white"
+            className="flex md:hidden items-center justify-center rounded-lg p-2 text-content-secondary transition-colors hover:bg-surface-muted hover:text-content-primary"
           >
             {menuOpen ? <IconX /> : <IconMenu />}
           </button>
@@ -140,7 +131,7 @@ export function Navbar() {
         id="mobile-menu"
         ref={menuRef}
         className={[
-          'fixed top-16 inset-x-0 z-40 md:hidden bg-brand-black border-b border-border-subtle',
+          'fixed top-16 inset-x-0 z-40 md:hidden bg-surface-base border-b border-border-subtle',
           'transition-all duration-200 ease-in-out origin-top',
           menuOpen ? 'opacity-100 scale-y-100 pointer-events-auto' : 'opacity-0 scale-y-95 pointer-events-none',
         ].join(' ')}
@@ -162,22 +153,16 @@ export function Navbar() {
             {username ? (
               <div className="flex items-center justify-between px-1">
                 <span className="text-sm text-content-secondary">{username}</span>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-content-secondary transition-colors hover:border-brand-white/30 hover:text-brand-white"
-                >
-                  Wyloguj
-                </button>
+                <Button variant="secondary" size="sm" onClick={handleLogout}>Wyloguj</Button>
               </div>
             ) : (
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                fullWidth
                 onClick={() => { setMenuOpen(false); setAuthOpen(true); }}
-                className="w-full rounded-lg border border-brand-purple/50 py-2.5 text-sm font-medium text-brand-white transition-colors hover:bg-brand-purple/10"
               >
                 Zaloguj się
-              </button>
+              </Button>
             )}
           </div>
 

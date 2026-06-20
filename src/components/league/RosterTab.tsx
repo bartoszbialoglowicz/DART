@@ -8,42 +8,46 @@ import {
 import { usePlayers } from '../../hooks/usePlayers';
 import type { Player } from '../../types/player';
 import { PendingBadge, EmptyMsg } from './shared';
+import { PlayerSearchSelect } from './PlayerSearchSelect';
+import { SegmentedControl } from '../ui/SegmentedControl';
+import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
+import { Tag } from '../ui/Tag';
+import { Modal } from '../ui/Modal';
 
+type Mode = 'player' | 'placeholder';
 type PendingLink = { memberId: number; memberName: string; player: Player };
+type RemoveTarget = { id: number; name: string };
 
-export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: boolean }) {
+const MODE_OPTIONS = [
+  { value: 'player'      as Mode, label: 'Zarejestrowany' },
+  { value: 'placeholder' as Mode, label: 'Placeholder' },
+];
+
+export function RosterTab({ leagueId, isDraft, isOwner }: { leagueId: number; isDraft: boolean; isOwner: boolean }) {
   const { data: league }      = useLeague(leagueId);
   const { data: playersData } = usePlayers();
   const addMember             = useAddLeagueMember(leagueId);
   const removeMember          = useRemoveLeagueMember(leagueId);
   const linkPlayer            = useLinkPlayer(leagueId);
 
-  const [mode, setMode]                         = useState<'player' | 'placeholder'>('player');
-  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null);
-  const [placeholderName, setPlaceholderName]   = useState('');
-  const [search, setSearch]                     = useState('');
-  const [linkingId, setLinkingId]               = useState<number | null>(null);
-  const [linkSearch, setLinkSearch]             = useState('');
-  const [pendingLink, setPendingLink]           = useState<PendingLink | null>(null);
+  const [mode, setMode]                       = useState<Mode>('player');
+  const [selectedPlayer, setSelectedPlayer]   = useState<Player | null>(null);
+  const [placeholderName, setPlaceholderName] = useState('');
+  const [linkingId, setLinkingId]             = useState<number | null>(null);
+  const [pendingLink, setPendingLink]         = useState<PendingLink | null>(null);
+  const [removeTarget, setRemoveTarget]       = useState<RemoveTarget | null>(null);
 
-  const allPlayers: Player[]  = playersData ?? [];
-  const members               = league?.members ?? [];
-  const memberPlayerIds       = new Set(members.map(m => m.player_id).filter(Boolean));
-
-  const filtered = allPlayers.filter(p =>
-    !memberPlayerIds.has(p.id) &&
-    `${p.first_name} ${p.last_name}`.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const linkFiltered = allPlayers.filter(p =>
-    !memberPlayerIds.has(p.id) &&
-    `${p.first_name} ${p.last_name}`.toLowerCase().includes(linkSearch.toLowerCase())
+  const allPlayers: Player[] = playersData ?? [];
+  const members              = league?.members ?? [];
+  const memberPlayerIds      = new Set(
+    members.map(m => m.player_id).filter((id): id is number => id != null),
   );
 
   function handleAdd() {
-    if (mode === 'player' && selectedPlayerId) {
-      addMember.mutate({ player_id: selectedPlayerId }, {
-        onSuccess: () => { setSelectedPlayerId(null); setSearch(''); },
+    if (mode === 'player' && selectedPlayer) {
+      addMember.mutate({ player_id: selectedPlayer.id }, {
+        onSuccess: () => setSelectedPlayer(null),
       });
     } else if (mode === 'placeholder' && placeholderName.trim()) {
       addMember.mutate({ display_name: placeholderName.trim() }, {
@@ -52,9 +56,9 @@ export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: bo
     }
   }
 
-  function selectPlayerForLink(memberId: number, memberName: string, player: Player) {
-    setPendingLink({ memberId, memberName, player });
-    setLinkSearch('');
+  function toggleLinkPanel(memberId: number) {
+    setPendingLink(null);
+    setLinkingId(id => (id === memberId ? null : memberId));
   }
 
   function confirmLink() {
@@ -65,10 +69,7 @@ export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: bo
     );
   }
 
-  function closeLinkPanel(memberId: number) {
-    if (linkingId === memberId) { setLinkingId(null); setLinkSearch(''); setPendingLink(null); }
-    else { setLinkingId(memberId); setLinkSearch(''); setPendingLink(null); }
-  }
+  const canAdd = mode === 'player' ? !!selectedPlayer : !!placeholderName.trim();
 
   const pendingMembers = members.filter(m => m.status === 'pending');
   const activeMembers  = members.filter(m => m.status === 'active');
@@ -78,58 +79,59 @@ export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: bo
 
       {/* Add form — only when draft */}
       {isDraft && (
-        <div className="rounded-xl border border-border-subtle bg-white/3 p-4">
+        <div className="rounded-xl border border-border-subtle bg-surface-overlay p-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-content-secondary">Dodaj gracza</p>
 
-          <div className="mb-3 flex gap-2">
-            {(['player', 'placeholder'] as const).map(m => (
-              <button key={m} type="button" onClick={() => setMode(m)}
-                className={[
-                  'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
-                  mode === m
-                    ? 'border-brand-purple bg-brand-purple/10 text-brand-white'
-                    : 'border-border-subtle text-content-secondary hover:border-brand-purple/50 hover:text-brand-white',
-                ].join(' ')}>
-                {m === 'player' ? 'Zarejestrowany gracz' : 'Placeholder (niezarejestrowany)'}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            className="mb-3"
+            fullWidth
+            aria-label="Typ gracza"
+            value={mode}
+            onChange={setMode}
+            options={MODE_OPTIONS}
+          />
 
           {mode === 'player' ? (
             <div className="flex flex-col gap-2">
-              <input
-                type="text" value={search} onChange={e => setSearch(e.target.value)}
+              <PlayerSearchSelect
+                players={allPlayers}
+                excludeIds={memberPlayerIds}
                 placeholder="Szukaj gracza…"
-                className="rounded-lg border border-border-subtle bg-brand-black px-3 py-2 text-sm text-brand-white placeholder:text-content-secondary focus:border-brand-purple focus:outline-none transition-colors"
+                onSelect={setSelectedPlayer}
               />
-              {search && (
-                <div className="max-h-44 overflow-y-auto rounded-lg border border-border-subtle bg-brand-black">
-                  {filtered.length === 0
-                    ? <p className="px-4 py-3 text-sm text-content-secondary">Brak wyników.</p>
-                    : filtered.slice(0, 8).map(p => (
-                      <button key={p.id} type="button"
-                        onClick={() => { setSelectedPlayerId(p.id); setSearch(`${p.first_name} ${p.last_name}`); }}
-                        className="w-full px-4 py-2.5 text-left text-sm text-content-secondary hover:bg-white/5 hover:text-brand-white transition-colors">
-                        {p.first_name} {p.last_name}
-                      </button>
-                    ))}
+              {selectedPlayer && (
+                <div className="flex items-center gap-2 text-sm text-content-secondary">
+                  <span>Wybrany:</span>
+                  <Tag>{selectedPlayer.first_name} {selectedPlayer.last_name}</Tag>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlayer(null)}
+                    className="text-content-faint transition-colors hover:text-content-primary"
+                    aria-label="Wyczyść wybór"
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
             </div>
           ) : (
-            <input
-              type="text" value={placeholderName} onChange={e => setPlaceholderName(e.target.value)}
+            <Input
+              type="text"
+              value={placeholderName}
+              onChange={e => setPlaceholderName(e.target.value)}
               placeholder="Imię i nazwisko (np. Anna Kowalska)"
-              className="w-full rounded-lg border border-border-subtle bg-brand-black px-3 py-2 text-sm text-brand-white placeholder:text-content-secondary focus:border-brand-purple focus:outline-none transition-colors"
             />
           )}
 
-          <button
-            type="button" onClick={handleAdd}
-            disabled={addMember.isPending || (mode === 'player' ? !selectedPlayerId : !placeholderName.trim())}
-            className="mt-3 rounded-lg bg-brand-purple px-4 py-2 text-sm font-semibold text-brand-white transition-opacity disabled:opacity-40 hover:bg-brand-purple/80">
-            {addMember.isPending ? 'Dodawanie…' : 'Dodaj'}
-          </button>
+          <Button
+            className="mt-3"
+            variant="primary"
+            loading={addMember.isPending}
+            disabled={addMember.isPending || !canAdd}
+            onClick={handleAdd}
+          >
+            Dodaj
+          </Button>
         </div>
       )}
 
@@ -141,12 +143,12 @@ export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: bo
 
           {activeMembers.map(member => (
             <div key={member.id}
-              className="flex items-center justify-between rounded-xl border border-border-subtle bg-white/3 px-4 py-3">
-              <span className="text-sm font-medium text-brand-white">{member.display_name}</span>
+              className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface-overlay px-4 py-3">
+              <span className="text-sm font-medium text-content-primary">{member.display_name}</span>
               {isDraft && (
                 <button type="button"
-                  onClick={() => { if (confirm(`Usunąć ${member.display_name}?`)) removeMember.mutate(member.id); }}
-                  className="rounded p-1 text-content-secondary hover:text-red-400 transition-colors"
+                  onClick={() => setRemoveTarget({ id: member.id, name: member.display_name })}
+                  className="rounded p-1 text-content-secondary transition-colors hover:text-score-down-text"
                   aria-label="Usuń">
                   ✕
                 </button>
@@ -155,23 +157,23 @@ export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: bo
           ))}
 
           {pendingMembers.map(member => (
-            <div key={member.id} className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+            <div key={member.id} className="rounded-xl border border-border-subtle bg-rank-soft px-4 py-3">
               {/* Header row */}
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-brand-white">{member.display_name}</span>
+                  <span className="text-sm font-medium text-content-primary">{member.display_name}</span>
                   <PendingBadge />
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button"
-                    onClick={() => closeLinkPanel(member.id)}
-                    className="rounded-lg border border-amber-500/30 px-3 py-1 text-xs font-medium text-amber-400 hover:border-amber-500/60 transition-colors">
-                    {linkingId === member.id ? 'Zamknij' : 'Powiąż z kontem'}
-                  </button>
+                  {isOwner && (
+                    <Button variant="secondary" size="sm" onClick={() => toggleLinkPanel(member.id)}>
+                      {linkingId === member.id ? 'Zamknij' : 'Powiąż z kontem'}
+                    </Button>
+                  )}
                   {isDraft && (
                     <button type="button"
-                      onClick={() => { if (confirm(`Usunąć ${member.display_name}?`)) removeMember.mutate(member.id); }}
-                      className="rounded p-1 text-content-secondary hover:text-red-400 transition-colors"
+                      onClick={() => setRemoveTarget({ id: member.id, name: member.display_name })}
+                      className="rounded p-1 text-content-secondary transition-colors hover:text-score-down-text"
                       aria-label="Usuń">
                       ✕
                     </button>
@@ -181,15 +183,15 @@ export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: bo
 
               {/* Link panel */}
               {linkingId === member.id && (
-                <div className="mt-3 border-t border-amber-500/15 pt-3">
+                <div className="mt-3 border-t border-border-subtle pt-3">
                   {pendingLink && pendingLink.memberId === member.id ? (
-                    <div className="rounded-lg border border-brand-purple/30 bg-brand-purple/8 px-4 py-3">
+                    <div className="rounded-lg border border-border-subtle bg-accent-soft px-4 py-3">
                       <p className="mb-0.5 text-xs text-content-secondary">Potwierdzenie powiązania</p>
-                      <p className="text-sm text-brand-white">
+                      <p className="text-sm text-content-primary">
                         Czy chcesz powiązać{' '}
-                        <span className="font-semibold text-amber-300">{pendingLink.memberName}</span>
+                        <span className="font-semibold text-rank-text">{pendingLink.memberName}</span>
                         {' '}z kontem{' '}
-                        <span className="font-semibold text-brand-purple">
+                        <span className="font-semibold text-content-accent">
                           {pendingLink.player.first_name} {pendingLink.player.last_name}
                         </span>
                         ?
@@ -198,45 +200,48 @@ export function RosterTab({ leagueId, isDraft }: { leagueId: number; isDraft: bo
                         Ta operacja jest nieodwracalna — wyniki meczów pozostaną przypisane do tego gracza.
                       </p>
                       <div className="mt-3 flex gap-2">
-                        <button type="button" onClick={confirmLink}
-                          disabled={linkPlayer.isPending}
-                          className="rounded-lg bg-brand-purple px-4 py-1.5 text-sm font-semibold text-brand-white transition-opacity disabled:opacity-40 hover:bg-brand-purple/80">
-                          {linkPlayer.isPending ? 'Zapisywanie…' : 'Potwierdź'}
-                        </button>
-                        <button type="button" onClick={() => setPendingLink(null)}
-                          className="rounded-lg border border-border-subtle px-4 py-1.5 text-sm font-medium text-content-secondary hover:text-brand-white transition-colors">
+                        <Button variant="primary" size="sm" loading={linkPlayer.isPending} onClick={confirmLink}>
+                          Potwierdź
+                        </Button>
+                        <Button variant="secondary" size="sm" onClick={() => setPendingLink(null)}>
                           Anuluj
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2">
-                      <input
-                        type="text" value={linkSearch} onChange={e => setLinkSearch(e.target.value)}
-                        placeholder="Szukaj zarejestrowanego gracza…"
-                        autoFocus
-                        className="rounded-lg border border-border-subtle bg-brand-black px-3 py-2 text-sm text-brand-white placeholder:text-content-secondary focus:border-brand-purple focus:outline-none transition-colors"
-                      />
-                      {linkSearch && (
-                        <div className="max-h-36 overflow-y-auto rounded-lg border border-border-subtle bg-brand-black">
-                          {linkFiltered.length === 0
-                            ? <p className="px-4 py-3 text-sm text-content-secondary">Brak wyników.</p>
-                            : linkFiltered.slice(0, 6).map(p => (
-                              <button key={p.id} type="button"
-                                onClick={() => selectPlayerForLink(member.id, member.display_name, p)}
-                                className="w-full px-4 py-2.5 text-left text-sm text-content-secondary hover:bg-white/5 hover:text-brand-white transition-colors">
-                                {p.first_name} {p.last_name}
-                              </button>
-                            ))}
-                        </div>
-                      )}
-                    </div>
+                    <PlayerSearchSelect
+                      players={allPlayers}
+                      excludeIds={memberPlayerIds}
+                      placeholder="Szukaj zarejestrowanego gracza…"
+                      autoFocus
+                      limit={6}
+                      onSelect={p => setPendingLink({ memberId: member.id, memberName: member.display_name, player: p })}
+                    />
                   )}
                 </div>
               )}
             </div>
           ))}
         </div>
+      )}
+
+      {/* Remove confirmation */}
+      {removeTarget && (
+        <Modal title="Usunąć gracza?" size="xs" onClose={() => setRemoveTarget(null)}>
+          <p className="text-sm text-content-secondary">
+            Czy na pewno usunąć <span className="font-semibold text-content-primary">{removeTarget.name}</span> z ligi?
+          </p>
+          <div className="mt-6 flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setRemoveTarget(null)}>Anuluj</Button>
+            <Button
+              variant="danger"
+              loading={removeMember.isPending}
+              onClick={() => removeMember.mutate(removeTarget.id, { onSuccess: () => setRemoveTarget(null) })}
+            >
+              Usuń
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );

@@ -88,10 +88,10 @@ export function ProfilePage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_1fr]">
+      <div className="flex flex-col gap-5 lg:flex-row">
 
         {/* ── Sidebar ────────────────────────────────────────── */}
-        <aside className="flex flex-col gap-4">
+        <aside className="flex flex-col gap-4 lg:w-64 lg:shrink-0">
           <Card>
             {/* Avatar + name */}
             <div className="mb-5 flex flex-col items-center text-center">
@@ -131,15 +131,11 @@ export function ProfilePage() {
               <SidebarStat label="180 łącznie"       value={String(stats.count_180)} />
               <SidebarStat label="Highfinishe"       value={String(stats.high_checkouts)} />
             </div>
-
-            <Button variant="secondary" fullWidth disabled className="mt-4">
-              Edytuj profil
-            </Button>
           </Card>
         </aside>
 
         {/* ── Main content ───────────────────────────────────── */}
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-5 lg:min-w-0 lg:flex-1">
           <ProgressSection sessions={sessions} />
           <TournamentStatsSection stats={stats} />
           <TrainingSummarySection sessions={sessions} />

@@ -7,7 +7,7 @@ export function Layout() {
   const { username, playerId } = useAuth();
 
   return (
-    <div className="flex min-h-screen flex-col bg-brand-black text-content-primary">
+    <div className="flex min-h-screen flex-col bg-surface-base text-content-primary">
       <Navbar />
       <main className="flex flex-1 flex-col">
         <Outlet />

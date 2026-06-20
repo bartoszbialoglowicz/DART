@@ -9,9 +9,10 @@ import {
 import { createPortal } from "react-dom";
 import { cn } from "./cn";
 
-type ModalSize = "sm" | "md" | "lg" | "xl";
+type ModalSize = "xs" | "sm" | "md" | "lg" | "xl";
 
 const SIZE_CLASS: Record<ModalSize, string> = {
+  xs: "max-w-xs",
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { BracketMatch, MatchSlot } from '../../types/bracket';
 import type { MatchFormat } from '../../types/tournament';
+import { cn } from '../ui/cn';
 import { MatchActionMenu } from './MatchActionMenu';
 
 type Props = {
@@ -31,23 +32,21 @@ export function MatchCard({ match, matchFormat, isOwner, onSimulate, onEnterResu
         type="button"
         onClick={() => isClickable && setMenuOpen(true)}
         disabled={!isClickable}
-        className={[
-          'w-40 overflow-hidden rounded-lg border bg-surface-overlay text-left',
-          isClickable
-            ? 'border-border-subtle transition-colors hover:border-brand-purple/50 hover:bg-brand-purple/5 cursor-pointer'
-            : 'border-border-subtle cursor-default',
-        ].join(' ')}
+        className={cn(
+          'w-40 overflow-hidden rounded-lg border border-border-subtle bg-surface-overlay text-left',
+          isClickable ? 'cursor-pointer transition-colors hover:bg-surface-muted' : 'cursor-default',
+        )}
       >
         <Slot slot={top}    winner={topIsWinner}    loser={result !== undefined && !topIsWinner} />
 
         {result ? (
-          <div className="border-t border-border-subtle py-1 text-center text-xs font-semibold tabular-nums text-brand-purple">
+          <div className="border-t border-border-subtle py-1 text-center font-display text-xs font-semibold tabular-nums text-content-accent">
             {result.displayScore}
           </div>
         ) : isLive ? (
-          <div className="border-t border-border-subtle py-1 flex items-center justify-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse shrink-0" />
-            <span className="text-xs font-semibold tabular-nums text-brand-purple">
+          <div className="flex items-center justify-center gap-1.5 border-t border-border-subtle py-1">
+            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-score-up" />
+            <span className="font-display text-xs font-semibold tabular-nums text-content-accent">
               {topLegsWon}–{bottomLegsWon}
             </span>
           </div>
@@ -75,12 +74,12 @@ export function MatchCard({ match, matchFormat, isOwner, onSimulate, onEnterResu
 function Slot({ slot, winner, loser }: { slot: MatchSlot; winner: boolean; loser: boolean }) {
   return (
     <div
-      className={[
+      className={cn(
         'flex h-9 min-w-0 items-center gap-1 px-3 text-xs transition-colors',
-        winner ? 'font-semibold text-brand-white'    : '',
-        loser  ? 'text-content-secondary opacity-40' : '',
-        !winner && !loser ? 'text-content-secondary' : '',
-      ].join(' ')}
+        winner && 'font-semibold text-content-primary',
+        loser && 'text-content-secondary opacity-40',
+        !winner && !loser && 'text-content-secondary',
+      )}
     >
       <span className="truncate">
         {slot.playerName ?? (slot.playerId !== null

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useBlocker } from 'react-router-dom';
-import { LiveMatchScreen } from '../components/bracket/LiveMatchScreen';
+import { LiveMatchScreen } from '../components/match/LiveMatchScreen';
 import { CheckoutsGame } from '../components/solo/CheckoutsGame';
 import { SKILL_LEVELS, type SkillLevel } from '../utils/dart501';
 import { SET_OPTIONS, LEG_OPTIONS } from '../types/tournament';
@@ -8,6 +8,12 @@ import type { BracketMatch, LegRecord, LegRound } from '../types/bracket';
 import type { MatchFormat } from '../types/tournament';
 import { useAddTrainingSession } from '../hooks/useTraining';
 import { computeMatchStats } from '../utils/statistics';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
+import { Input } from '../components/ui/Input';
+import Modal from '../components/ui/Modal';
+import { OptionButton } from '../components/ui/OptionButton';
+import { SelectableCard } from '../components/ui/SelectableCard';
 
 type ActiveMode    = 'vs-cpu' | 'vs-guest' | 'checkouts' | null;
 type CheckoutsMode = 'easy' | 'hard';
@@ -275,12 +281,12 @@ export function SoloPage() {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-8">
-      <h1 className="mb-6 text-lg font-semibold text-brand-white">Tryb solo</h1>
+      <h1 className="mb-6 text-lg font-semibold text-content-primary">Tryb solo</h1>
 
       {savedSession && (
-        <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-brand-purple/30 bg-brand-purple/5 px-4 py-3">
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-xl border border-border-subtle border-l-4 border-l-border-accent bg-surface-overlay px-4 py-3">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-brand-white">Wznów poprzednią grę</p>
+            <p className="text-sm font-semibold text-content-primary">Wznów poprzednią grę</p>
             <p className="mt-0.5 truncate text-xs text-content-secondary">
               {savedSession.activeMode === 'vs-cpu' ? '501 vs CPU' : 'vs Gość'}
               {savedSession.completedLegs.length > 0 && (
@@ -292,44 +298,24 @@ export function SoloPage() {
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
-            <button
-              type="button"
-              onClick={dismissSession}
-              className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-content-secondary transition-colors hover:text-brand-white"
-            >
-              Porzuć
-            </button>
-            <button
-              type="button"
-              onClick={resumeSession}
-              className="rounded-lg bg-brand-purple px-3 py-1.5 text-xs font-semibold text-brand-white transition-colors hover:bg-brand-purple/80"
-            >
-              Wznów
-            </button>
+            <Button variant="ghost" size="sm" onClick={dismissSession}>Porzuć</Button>
+            <Button variant="primary" size="sm" onClick={resumeSession}>Wznów</Button>
           </div>
         </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {MODES.map((mode) => (
-          <button
+          <SelectableCard
             key={mode.id}
-            type="button"
+            layout="stack"
             disabled={!mode.available}
             onClick={mode.available ? () => setActiveMode(mode.id as ActiveMode) : undefined}
-            className="flex flex-col gap-4 rounded-xl border border-border-subtle bg-brand-black px-5 py-5 text-left transition-colors hover:border-brand-purple/50 hover:bg-brand-purple/5 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <span className="text-brand-purple">{mode.icon}</span>
-            <div>
-              <p className="text-sm font-semibold text-brand-white">{mode.title}</p>
-              <p className="mt-1 text-xs text-content-secondary">{mode.description}</p>
-            </div>
-            {!mode.available && (
-              <span className="mt-auto self-start rounded-full border border-border-subtle px-3 py-0.5 text-xs text-content-secondary">
-                Wkrótce
-              </span>
-            )}
-          </button>
+            icon={mode.icon}
+            title={mode.title}
+            description={mode.description}
+            footer={!mode.available ? <Badge variant="neutral">Wkrótce</Badge> : undefined}
+          />
         ))}
       </div>
     </div>
@@ -339,57 +325,24 @@ export function SoloPage() {
 // ── Blocker dialog ────────────────────────────────────────────────────────────
 
 function BlockerDialog({ blocker }: { blocker: ReturnType<typeof useBlocker> }) {
-  if (blocker.state !== 'blocked') return null;
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 px-6">
-      <div className="w-full max-w-xs rounded-2xl border border-border-subtle bg-brand-black p-6">
-        <p className="text-base font-semibold text-brand-white">Opuścić grę?</p>
-        <p className="mt-2 text-sm leading-relaxed text-content-secondary">
-          Postęp jest zapisany — możesz wrócić do tej gry z menu Solo.
-        </p>
-        <div className="mt-6 flex gap-3">
-          <button
-            type="button"
-            onClick={() => blocker.reset?.()}
-            className="flex-1 rounded-xl border border-border-subtle py-3 text-sm font-medium text-content-secondary transition-colors hover:text-brand-white"
-          >
-            Zostań
-          </button>
-          <button
-            type="button"
-            onClick={() => blocker.proceed?.()}
-            className="flex-1 rounded-xl bg-brand-purple py-3 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple/80"
-          >
-            Opuść
-          </button>
-        </div>
-      </div>
-    </div>
+    <Modal
+      open={blocker.state === 'blocked'}
+      onClose={() => blocker.reset?.()}
+      size="sm"
+      title="Opuścić grę?"
+      description="Postęp jest zapisany — możesz wrócić do tej gry z menu Solo."
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => blocker.reset?.()}>Zostań</Button>
+          <Button variant="primary" onClick={() => blocker.proceed?.()}>Opuść</Button>
+        </>
+      }
+    />
   );
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
-
-function OptionBtn({
-  active, onClick, children,
-}: {
-  active: boolean; onClick: () => void; children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        'rounded-lg border px-4 py-2 text-sm font-medium transition-colors duration-150',
-        active
-          ? 'border-brand-purple bg-brand-purple text-brand-white'
-          : 'border-border-subtle bg-brand-black text-content-secondary hover:border-brand-purple/50 hover:text-brand-white',
-      ].join(' ')}
-    >
-      {children}
-    </button>
-  );
-}
 
 function FormatSection({
   sets, onSets, legs, onLegs,
@@ -405,7 +358,7 @@ function FormatSection({
         </p>
         <div className="flex flex-wrap gap-2">
           {SET_OPTIONS.map((n) => (
-            <OptionBtn key={n} active={sets === n} onClick={() => onSets(n)}>{n}</OptionBtn>
+            <OptionButton key={n} selected={sets === n} onClick={() => onSets(n)}>{n}</OptionButton>
           ))}
         </div>
       </section>
@@ -416,7 +369,7 @@ function FormatSection({
         </p>
         <div className="flex flex-wrap gap-2">
           {LEG_OPTIONS.map((n) => (
-            <OptionBtn key={n} active={legs === n} onClick={() => onLegs(n)}>{n}</OptionBtn>
+            <OptionButton key={n} selected={legs === n} onClick={() => onLegs(n)}>{n}</OptionButton>
           ))}
         </div>
       </section>
@@ -436,11 +389,11 @@ function CheckoutsSetup({
 
   return (
     <div className="mx-auto w-full max-w-sm px-6 py-8">
-      <button type="button" onClick={onBack} className="mb-6 text-sm text-content-secondary transition-colors hover:text-brand-white">
+      <Button variant="ghost" size="md" onClick={onBack} className="mb-6">
         ← Wróć
-      </button>
+      </Button>
 
-      <h2 className="mb-2 text-lg font-semibold text-brand-white">Checkouts</h2>
+      <h2 className="mb-2 text-lg font-semibold text-content-primary">Checkouts</h2>
       <p className="mb-8 text-xs text-content-secondary leading-relaxed">
         Zacznij od D20 (40). Zamknięcie w 3 lotkach → +10 pkt. Brak → −1 pkt (min. 40).
       </p>
@@ -450,42 +403,26 @@ function CheckoutsSetup({
           Tryb
         </p>
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
+          <SelectableCard
+            selected={mode === 'easy'}
+            tone="accent"
+            title="Easy"
+            meta="Gra trwa bez limitu"
             onClick={() => setMode('easy')}
-            className={[
-              'flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-150',
-              mode === 'easy'
-                ? 'border-brand-purple bg-brand-purple/10'
-                : 'border-border-subtle bg-brand-black hover:border-brand-purple/50',
-            ].join(' ')}
-          >
-            <span className="text-sm font-semibold text-brand-white">Easy</span>
-            <span className="ml-auto text-xs text-content-secondary">Gra trwa bez limitu</span>
-          </button>
-          <button
-            type="button"
+          />
+          <SelectableCard
+            selected={mode === 'hard'}
+            tone="danger"
+            title="Hard"
+            meta="Koniec przy braku na 40"
             onClick={() => setMode('hard')}
-            className={[
-              'flex items-start gap-3 rounded-lg border px-4 py-3 text-left transition-colors duration-150',
-              mode === 'hard'
-                ? 'border-red-500/60 bg-red-950/20'
-                : 'border-border-subtle bg-brand-black hover:border-red-500/30',
-            ].join(' ')}
-          >
-            <span className="text-sm font-semibold text-brand-white">Hard</span>
-            <span className="ml-auto text-xs text-content-secondary">Koniec przy braku na 40</span>
-          </button>
+          />
         </div>
       </section>
 
-      <button
-        type="button"
-        onClick={() => onStart(mode)}
-        className="w-full rounded-xl bg-brand-purple px-6 py-4 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple-500"
-      >
+      <Button variant="primary" size="lg" fullWidth onClick={() => onStart(mode)}>
         Zagraj
-      </button>
+      </Button>
     </div>
   );
 }
@@ -502,11 +439,11 @@ function VsCpuSetup({
 
   return (
     <div className="mx-auto w-full max-w-sm px-6 py-8">
-      <button type="button" onClick={onBack} className="mb-6 text-sm text-content-secondary transition-colors hover:text-brand-white">
+      <Button variant="ghost" size="md" onClick={onBack} className="mb-6">
         ← Wróć
-      </button>
+      </Button>
 
-      <h2 className="mb-8 text-lg font-semibold text-brand-white">501 vs CPU</h2>
+      <h2 className="mb-8 text-lg font-semibold text-content-primary">501 vs CPU</h2>
 
       <section className="mb-6">
         <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
@@ -514,33 +451,27 @@ function VsCpuSetup({
         </p>
         <div className="flex flex-col gap-2">
           {SKILL_LEVELS.map((level) => (
-            <button
+            <SelectableCard
               key={level.id}
-              type="button"
+              selected={difficulty.id === level.id}
+              title={level.label}
+              meta={`σ = ${level.sigma} mm`}
               onClick={() => setDifficulty(level)}
-              className={[
-                'flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors duration-150',
-                difficulty.id === level.id
-                  ? 'border-brand-purple bg-brand-purple/10 text-brand-white'
-                  : 'border-border-subtle bg-brand-black text-content-secondary hover:border-brand-purple/50 hover:text-brand-white',
-              ].join(' ')}
-            >
-              <span className="text-sm font-semibold">{level.label}</span>
-              <span className="text-xs text-content-secondary">σ = {level.sigma} mm</span>
-            </button>
+            />
           ))}
         </div>
       </section>
 
       <FormatSection sets={sets} onSets={setSets} legs={legs} onLegs={setLegs} />
 
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
         onClick={() => onStart({ difficulty, matchFormat: { sets, legs } })}
-        className="w-full rounded-xl bg-brand-purple px-6 py-4 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple-500"
       >
         Zagraj
-      </button>
+      </Button>
     </div>
   );
 }
@@ -557,35 +488,35 @@ function VsGuestSetup({
 
   return (
     <div className="mx-auto w-full max-w-sm px-6 py-8">
-      <button type="button" onClick={onBack} className="mb-6 text-sm text-content-secondary transition-colors hover:text-brand-white">
+      <Button variant="ghost" size="md" onClick={onBack} className="mb-6">
         ← Wróć
-      </button>
+      </Button>
 
-      <h2 className="mb-8 text-lg font-semibold text-brand-white">vs Gość</h2>
+      <h2 className="mb-8 text-lg font-semibold text-content-primary">vs Gość</h2>
 
       <section className="mb-6">
         <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
           Imię gościa
         </p>
-        <input
+        <Input
           type="text"
           value={guestName}
           onChange={(e) => setGuestName(e.target.value)}
           placeholder="Gość"
           maxLength={30}
-          className="w-full rounded-lg border border-border-subtle bg-white/5 px-4 py-3 text-sm text-brand-white placeholder:text-content-secondary/50 outline-none focus:border-brand-purple/60 transition-colors"
         />
       </section>
 
       <FormatSection sets={sets} onSets={setSets} legs={legs} onLegs={setLegs} />
 
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
         onClick={() => onStart({ guestName, matchFormat: { sets, legs } })}
-        className="w-full rounded-xl bg-brand-purple px-6 py-4 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple-500"
       >
         Zagraj
-      </button>
+      </Button>
     </div>
   );
 }

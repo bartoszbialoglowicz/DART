@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import type { BracketMatch, DoubleAttempt, LegRecord, LegRound } from '../../../types/bracket';
 import type { MatchFormat } from '../../../types/tournament';
 import { currentLegAvg, matchAvg } from '../../../utils/statistics';
-import { cpuVisitDoubleAttempt, simulateCpuVisit } from '../../../utils/dart501';
+import { cpuVisitDoubleAttempt, getCheckoutHint, simulateCpuVisit } from '../../../utils/dart501';
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -104,9 +104,19 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
     const remaining = currentRemaining - score;
     const newScore: Score = { score, remaining, ...(doubleAttempt ? { doubleAttempt } : {}) };
 
-    const newRounds: Round[] = activePlayer === 0
-      ? [...rounds, { p0: newScore }]
-      : [...rounds.slice(0, -1), { ...rounds[rounds.length - 1], p1: newScore }];
+    let newRounds: Round[];
+    if (activePlayer === 0) {
+      const last = rounds[rounds.length - 1];
+      // When opponent (p1) started the leg and already has a score in the last row,
+      // fill p0 into that same row instead of creating a new one.
+      if (last && last.p1 !== undefined && last.p0 === undefined) {
+        newRounds = [...rounds.slice(0, -1), { ...last, p0: newScore }];
+      } else {
+        newRounds = [...rounds, { p0: newScore }];
+      }
+    } else {
+      newRounds = [...rounds.slice(0, -1), { ...rounds[rounds.length - 1], p1: newScore }];
+    }
 
     setRounds(newRounds);
 
@@ -176,7 +186,14 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
     }
     const score = Number(input);
     setInput('');
-    if (currentRemaining <= 170) {
+    // Show double-attempt modal only when the player was already in checkout range:
+    // remaining === 50 (Bull finish) or remaining <= 40 (D1–D20), AND the value
+    // has a valid checkout route (even numbers and 50; odd numbers below 40 cannot
+    // be closed on a double directly and are excluded via getCheckoutHint).
+    const inDoubleZone =
+      (currentRemaining === 50 || currentRemaining <= 40) &&
+      getCheckoutHint(currentRemaining) !== null;
+    if (inDoubleZone) {
       setDoubleModalPending({ score, remainingBefore: currentRemaining, isClosing: score === currentRemaining });
     } else {
       applyScore(score);

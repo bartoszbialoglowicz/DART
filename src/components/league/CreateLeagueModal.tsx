@@ -2,6 +2,10 @@ import { useState } from 'react';
 import type { LeagueFormat, LeaguePayload } from '../../types/league';
 import { Modal } from '../ui/Modal';
 import { Toggle } from '../ui/Toggle';
+import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
+import { OptionButton } from '../ui/OptionButton';
+import { SelectableCard } from '../ui/SelectableCard';
 
 type Props = {
   onConfirm: (payload: LeaguePayload) => void;
@@ -44,118 +48,93 @@ export function CreateLeagueModal({ onConfirm, onClose, loading }: Props) {
   }
 
   return (
-    <Modal size="lg" onClose={onClose} aria-labelledby="league-modal-title">
-      <div className="p-8">
-        <h2 id="league-modal-title" className="mb-6 text-xl font-semibold tracking-wide text-brand-white">
-          Nowa liga
-        </h2>
+    <Modal title="Nowa liga" size="lg" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        {/* Name */}
+        <Field label="Nazwa ligi">
+          <Input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="np. Liga Środy"
+            maxLength={60}
+            autoFocus
+          />
+        </Field>
 
-          {/* Name */}
-          <Field label="Nazwa ligi">
-            <input
-              type="text"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="np. Liga Środy"
-              maxLength={60}
-              autoFocus
-              className="rounded-lg border border-border-subtle bg-brand-black px-4 py-3 text-sm text-brand-white placeholder:text-content-secondary focus:border-brand-purple focus:outline-none transition-colors"
+        {/* Match format */}
+        <Field label="Format meczu">
+          <div className="grid grid-cols-2 gap-3">
+            {FORMAT_OPTIONS.map(({ value, label, desc }) => (
+              <SelectableCard
+                key={value}
+                layout="stack"
+                selected={matchFormat === value}
+                onClick={() => setMatchFormat(value)}
+                title={label}
+                description={desc}
+              />
+            ))}
+          </div>
+        </Field>
+
+        {/* Sets (only for sets format) */}
+        {matchFormat === 'sets' && (
+          <Field label="Sety (best of)">
+            <OptionRow options={SET_OPTIONS} value={sets} onChange={setSets} />
+          </Field>
+        )}
+
+        {/* Legs */}
+        <Field label={matchFormat === 'sets' ? 'Legi na seta (best of)' : 'Legi (best of)'}>
+          <OptionRow options={LEG_OPTIONS} value={legs} onChange={setLegs} />
+        </Field>
+
+        {/* Matches per pair */}
+        <Field label="Mecze z każdym (2 = mecz i rewanż)">
+          <OptionRow options={PAIR_OPTIONS} value={matchesPerPair} onChange={setMatchesPerPair} />
+        </Field>
+
+        {/* Points */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Punkty za wygraną">
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={pointsWin}
+              onChange={e => setPointsWin(Number(e.target.value))}
             />
           </Field>
-
-          {/* Match format */}
-          <Field label="Format meczu">
-            <div className="grid grid-cols-2 gap-3">
-              {FORMAT_OPTIONS.map(({ value, label, desc }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setMatchFormat(value)}
-                  className={[
-                    'flex flex-col gap-0.5 rounded-lg border px-4 py-3 text-left transition-colors',
-                    matchFormat === value
-                      ? 'border-brand-purple bg-brand-purple/10 text-brand-white'
-                      : 'border-border-subtle bg-brand-black text-content-secondary hover:border-brand-purple/50 hover:text-brand-white',
-                  ].join(' ')}
-                >
-                  <span className="text-sm font-semibold">{label}</span>
-                  <span className="text-xs opacity-70">{desc}</span>
-                </button>
-              ))}
-            </div>
+          <Field label="Punkty za remis">
+            <Input
+              type="number"
+              min={0}
+              max={10}
+              value={pointsDraw}
+              onChange={e => setPointsDraw(Number(e.target.value))}
+            />
           </Field>
+        </div>
 
-          {/* Sets (only for sets format) */}
-          {matchFormat === 'sets' && (
-            <Field label="Sety (best of)">
-              <OptionRow options={SET_OPTIONS} value={sets} onChange={setSets} />
-            </Field>
-          )}
-
-          {/* Legs */}
-          <Field label={matchFormat === 'sets' ? 'Legi na seta (best of)' : 'Legi (best of)'}>
-            <OptionRow options={LEG_OPTIONS} value={legs} onChange={setLegs} />
-          </Field>
-
-          {/* Matches per pair */}
-          <Field label="Mecze z każdym (2 = mecz i rewanż)">
-            <OptionRow options={PAIR_OPTIONS} value={matchesPerPair} onChange={setMatchesPerPair} />
-          </Field>
-
-          {/* Points */}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Punkty za wygraną">
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={pointsWin}
-                onChange={e => setPointsWin(Number(e.target.value))}
-                className="rounded-lg border border-border-subtle bg-brand-black px-4 py-2.5 text-sm text-brand-white focus:border-brand-purple focus:outline-none transition-colors"
-              />
-            </Field>
-            <Field label="Punkty za remis">
-              <input
-                type="number"
-                min={0}
-                max={10}
-                value={pointsDraw}
-                onChange={e => setPointsDraw(Number(e.target.value))}
-                className="rounded-lg border border-border-subtle bg-brand-black px-4 py-2.5 text-sm text-brand-white focus:border-brand-purple focus:outline-none transition-colors"
-              />
-            </Field>
+        {/* Private toggle */}
+        <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border-subtle bg-surface-muted px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-content-primary">Liga prywatna</p>
+            <p className="text-xs text-content-secondary">Widoczna tylko dla członków</p>
           </div>
+          <Toggle checked={isPrivate} onChange={setIsPrivate} />
+        </label>
 
-          {/* Private toggle */}
-          <label className="flex cursor-pointer items-center justify-between rounded-lg border border-border-subtle bg-brand-black px-4 py-3 transition-colors hover:border-brand-purple/40">
-            <div>
-              <p className="text-sm font-medium text-brand-white">Liga prywatna</p>
-              <p className="text-xs text-content-secondary">Widoczna tylko dla członków</p>
-            </div>
-            <Toggle checked={isPrivate} onChange={setIsPrivate} />
-          </label>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg border border-border-subtle px-5 py-2.5 text-sm font-medium text-content-secondary transition-colors hover:border-brand-white/30 hover:text-brand-white"
-            >
-              Anuluj
-            </button>
-            <button
-              type="submit"
-              disabled={!name.trim() || loading}
-              className="rounded-lg bg-brand-purple px-5 py-2.5 text-sm font-semibold text-brand-white transition-opacity disabled:opacity-40 hover:bg-brand-purple/80"
-            >
-              {loading ? 'Tworzenie…' : 'Utwórz'}
-            </button>
-          </div>
-        </form>
-      </div>
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-1">
+          <Button type="button" variant="secondary" onClick={onClose}>Anuluj</Button>
+          <Button type="submit" variant="primary" loading={loading} disabled={!name.trim() || loading}>
+            Utwórz
+          </Button>
+        </div>
+      </form>
     </Modal>
   );
 }
@@ -177,19 +156,9 @@ function OptionRow<T extends number>({ options, value, onChange }: {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map(n => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          className={[
-            'rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
-            value === n
-              ? 'border-brand-purple bg-brand-purple text-brand-white'
-              : 'border-border-subtle bg-brand-black text-content-secondary hover:border-brand-purple/50 hover:text-brand-white',
-          ].join(' ')}
-        >
+        <OptionButton key={n} selected={value === n} onClick={() => onChange(n)}>
           {n}
-        </button>
+        </OptionButton>
       ))}
     </div>
   );

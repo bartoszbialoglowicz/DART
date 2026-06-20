@@ -2,6 +2,9 @@ import { useState } from 'react';
 import type { BracketMatch, Group, GroupsBracketData, MatchSlot } from '../../types/bracket';
 import type { MatchFormat } from '../../types/tournament';
 import { areGroupsComplete, computeGroupStandings, type GroupStanding } from '../../utils/bracket';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { cn } from '../ui/cn';
 import { MatchActionMenu } from './MatchActionMenu';
 import { KnockoutBracket } from './KnockoutBracket';
 
@@ -47,13 +50,9 @@ export function GroupsBracket({
         </div>
 
         {isOwner && allDone && !playoff && (
-          <button
-            type="button"
-            onClick={onGeneratePlayoff}
-            className="mt-6 rounded-xl bg-brand-purple/80 px-6 py-3 text-sm font-semibold text-brand-white transition-colors hover:bg-brand-purple"
-          >
+          <Button variant="primary" size="lg" className="mt-6" onClick={onGeneratePlayoff}>
             Generuj play-off →
-          </button>
+          </Button>
         )}
       </section>
 
@@ -92,9 +91,9 @@ function GroupCard({
   const matches   = group.matches ?? [];
 
   return (
-    <div className="w-72 shrink-0 overflow-hidden rounded-xl border border-border-subtle bg-surface-overlay">
-      <div className="border-b border-border-subtle bg-brand-purple/5 px-4 py-2.5">
-        <span className="text-xs font-bold uppercase tracking-widest text-brand-purple">
+    <Card padding="none" className="w-72 shrink-0 overflow-hidden">
+      <div className="border-b border-border-subtle bg-accent-soft px-4 py-2.5">
+        <span className="text-xs font-bold uppercase tracking-widest text-content-accent">
           Grupa {group.label}
         </span>
       </div>
@@ -102,7 +101,7 @@ function GroupCard({
       <StandingsTable standings={standings} qualifiers={QUALIFIERS_PER_GROUP} />
 
       <div className="border-t border-border-subtle">
-        <p className="px-4 py-2 text-[10px] font-medium uppercase tracking-widest text-content-secondary/60">
+        <p className="px-4 py-2 text-xs font-medium uppercase tracking-widest text-content-faint">
           Mecze
         </p>
         {matches.map(match => (
@@ -116,7 +115,7 @@ function GroupCard({
           />
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -125,7 +124,7 @@ function GroupCard({
 function StandingsTable({ standings, qualifiers }: { standings: GroupStanding[]; qualifiers: number }) {
   return (
     <div className="px-4 py-3">
-      <div className="mb-1 flex items-center gap-1 text-[10px] font-medium uppercase tracking-widest text-content-secondary/60">
+      <div className="mb-1 flex items-center gap-1 text-xs font-medium uppercase tracking-widest text-content-faint">
         <span className="w-5 shrink-0" />
         <span className="flex-1">Gracz</span>
         <span className="w-6 text-center">M</span>
@@ -142,16 +141,16 @@ function StandingsTable({ standings, qualifiers }: { standings: GroupStanding[];
 
 function StandingRow({ standing: s, rank, advances }: { standing: GroupStanding; rank: number; advances: boolean }) {
   return (
-    <div className={[
+    <div className={cn(
       'flex items-center gap-1 rounded py-1 text-xs',
-      advances ? 'text-brand-white' : 'text-content-secondary opacity-70',
-    ].join(' ')}>
-      <span className="w-5 shrink-0 text-center font-bold text-brand-purple">{rank}</span>
+      advances ? 'text-content-primary' : 'text-content-secondary opacity-70',
+    )}>
+      <span className="w-5 shrink-0 text-center font-bold text-content-accent">{rank}</span>
       <span className="flex-1 truncate font-medium">{s.slot.playerName ?? '—'}</span>
       <span className="w-6 text-center tabular-nums">{s.played}</span>
       <span className="w-6 text-center tabular-nums">{s.wins}</span>
       <span className="w-6 text-center tabular-nums">{s.losses}</span>
-      <span className="w-8 text-center tabular-nums font-bold text-brand-purple">{s.points}</span>
+      <span className="w-8 text-center font-bold tabular-nums text-content-accent">{s.points}</span>
     </div>
   );
 }
@@ -177,18 +176,18 @@ function GroupMatchRow({
         type="button"
         disabled={!canInteract}
         onClick={canInteract ? () => setOpen(true) : undefined}
-        className={[
-          'flex w-full items-center gap-2 border-t border-border-subtle/20 px-4 py-2 text-left text-xs',
-          canInteract ? 'cursor-pointer hover:bg-white/5' : 'cursor-default',
-        ].join(' ')}
+        className={cn(
+          'flex w-full items-center gap-2 border-t border-border-subtle px-4 py-2 text-left text-xs',
+          canInteract ? 'cursor-pointer hover:bg-surface-muted' : 'cursor-default',
+        )}
       >
         <PlayerLabel slot={match.top}    winner={match.result?.winner === 'top'} />
         {match.result ? (
-          <span className="w-10 shrink-0 text-center font-bold tabular-nums text-brand-purple">
+          <span className="w-10 shrink-0 text-center font-bold tabular-nums text-content-accent">
             {match.result.displayScore}
           </span>
         ) : (
-          <span className="w-10 shrink-0 text-center text-content-secondary/30">–</span>
+          <span className="w-10 shrink-0 text-center text-content-faint">–</span>
         )}
         <PlayerLabel slot={match.bottom} winner={match.result?.winner === 'bottom'} right />
       </button>
@@ -209,11 +208,11 @@ function GroupMatchRow({
 
 function PlayerLabel({ slot, winner, right = false }: { slot: MatchSlot; winner: boolean; right?: boolean }) {
   return (
-    <span className={[
+    <span className={cn(
       'flex-1 truncate',
-      right ? 'text-right' : '',
-      winner ? 'font-semibold text-brand-white' : 'text-content-secondary',
-    ].join(' ')}>
+      right && 'text-right',
+      winner ? 'font-semibold text-content-primary' : 'text-content-secondary',
+    )}>
       {slot.playerName ?? '—'}
     </span>
   );

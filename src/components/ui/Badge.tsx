@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "./cn";
 
-type BadgeVariant = "accent" | "neutral" | "up" | "down" | "rank";
+export type BadgeVariant = "accent" | "neutral" | "up" | "down" | "rank";
 
 const VARIANT: Record<BadgeVariant, string> = {
   accent: "bg-accent-soft text-accent-text",

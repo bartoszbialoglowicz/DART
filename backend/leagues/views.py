@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -105,7 +106,13 @@ class LeagueViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return League.objects.filter(owner=user).prefetch_related('members')
+        player = getattr(user, 'player_profile', None)
+
+        q = Q(owner=user)
+        if player:
+            q |= Q(members__player=player, status__in=['active', 'finished'])
+
+        return League.objects.filter(q).distinct().prefetch_related('members')
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -164,6 +171,8 @@ class LeagueViewSet(viewsets.ModelViewSet):
     def link_player(self, request, pk=None, member_id=None):
         """Link a placeholder member to an existing Player account."""
         league = self.get_object()
+        if league.owner != request.user:
+            return Response({'detail': 'Brak uprawnień.'}, status=status.HTTP_403_FORBIDDEN)
         try:
             member = league.members.get(pk=member_id, status='pending')
         except LeagueMember.DoesNotExist:
@@ -242,6 +251,8 @@ class LeagueViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['patch'], url_path=r'matchday/(?P<matchday>\d+)')
     def set_matchday_date(self, request, pk=None, matchday=None):
         league = self.get_object()
+        if league.owner != request.user:
+            return Response({'detail': 'Brak uprawnień.'}, status=status.HTTP_403_FORBIDDEN)
         date_str = request.data.get('date')  # expects "YYYY-MM-DD" or null
         count = league.matches.filter(matchday=matchday).update(scheduled_at=date_str or None)
         if count == 0:
@@ -265,6 +276,14 @@ class LeagueViewSet(viewsets.ModelViewSet):
             match = league.matches.get(pk=match_id)
         except LeagueMatch.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if league.owner != request.user:
+            player = getattr(request.user, 'player_profile', None)
+            member_id = (
+                league.members.filter(player=player).values_list('id', flat=True).first()
+            ) if player else None
+            if member_id not in {match.home_id, match.away_id}:
+                return Response({'detail': 'Brak uprawnień.'}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = LeagueMatchSerializer(match, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)

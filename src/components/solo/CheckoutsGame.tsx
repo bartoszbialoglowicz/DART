@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { getCheckoutHint } from '../../utils/dart501';
+import { GameShell } from '../game/GameShell';
+import { GameKey } from '../game/GameKey';
+import { Badge } from '../ui/Badge';
+import { Button } from '../ui/Button';
+import { cn } from '../ui/cn';
 
 const MIN_VALUE = 40;
 
@@ -68,66 +73,45 @@ export function CheckoutsGame({ mode, onBack }: Props) {
   const hitRate       = totalAttempts > 0 ? Math.round((successCount / totalAttempts) * 100) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-brand-black select-none">
-
-      {/* ── Header ──────────────────────────────────────────── */}
-      <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-medium uppercase tracking-widest text-content-secondary">
-            Checkouts
-          </span>
-          <span className={[
-            'rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-widest',
-            mode === 'hard'
-              ? 'bg-red-950/60 text-red-400'
-              : 'bg-brand-purple/20 text-brand-purple',
-          ].join(' ')}>
-            {mode}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-content-secondary hover:text-brand-white transition-colors"
-        >
-          Zamknij
-        </button>
-      </div>
-
+    <GameShell
+      title="Checkouts"
+      onClose={onBack}
+      badge={<Badge variant={mode === 'hard' ? 'down' : 'accent'} className="uppercase">{mode}</Badge>}
+    >
       {/* ── Value display ────────────────────────────────────── */}
-      <div className="shrink-0 flex flex-col items-center pt-6 pb-3 gap-1">
-        <span className="text-[10px] font-medium uppercase tracking-widest text-content-secondary">
+      <div className="flex shrink-0 flex-col items-center gap-1 pb-3 pt-6">
+        <span className="text-xs font-medium uppercase tracking-widest text-content-secondary">
           zamknij
         </span>
 
         <div className="flex items-start gap-3">
-          <span className="text-9xl font-black tabular-nums text-brand-white leading-none">
+          <span className="font-display text-9xl font-extrabold leading-none tabular-nums text-content-primary">
             {currentValue}
           </span>
           {delta !== null && (
-            <span className={[
-              'text-xl font-bold tabular-nums mt-2 leading-none',
-              delta > 0 ? 'text-green-400' : 'text-red-400',
-            ].join(' ')}>
+            <span className={cn(
+              'mt-2 font-display text-xl font-bold leading-none tabular-nums',
+              delta > 0 ? 'text-score-up-text' : 'text-score-down-text',
+            )}>
               {delta > 0 ? `+${delta}` : delta}
             </span>
           )}
         </div>
 
         {hint && (
-          <span className="text-base font-semibold text-brand-purple tracking-widest">
+          <span className="text-base font-semibold tracking-widest text-content-accent">
             {hint}
           </span>
         )}
 
-        <div className="flex gap-5 mt-2 text-xs text-content-secondary">
-          <span>seria <span className="font-bold text-brand-white">{streak}</span></span>
-          <span>rekord <span className="font-bold text-brand-white">{bestStreak}</span></span>
+        <div className="mt-2 flex gap-5 text-xs text-content-secondary">
+          <span>seria <span className="font-bold text-content-primary">{streak}</span></span>
+          <span>rekord <span className="font-bold text-content-primary">{bestStreak}</span></span>
           <span>
-            <span className="font-bold text-brand-white">{successCount}</span>
+            <span className="font-bold text-content-primary">{successCount}</span>
             <span>/{totalAttempts}</span>
             {totalAttempts > 0 && (
-              <span className="ml-1 text-brand-purple/70">({hitRate}%)</span>
+              <span className="ml-1 text-content-accent">({hitRate}%)</span>
             )}
           </span>
         </div>
@@ -139,18 +123,18 @@ export function CheckoutsGame({ mode, onBack }: Props) {
           {recentHistory.map((a, i) => (
             <div
               key={i}
-              className={[
+              className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2',
-                i === 0 ? 'bg-white/8' : 'bg-white/3',
-              ].join(' ')}
+                i === 0 ? 'bg-surface-muted' : 'bg-surface-overlay',
+              )}
             >
-              <span className={[
+              <span className={cn(
                 'w-4 shrink-0 text-center text-sm font-bold',
-                a.darts !== null ? 'text-green-400' : 'text-red-400',
-              ].join(' ')}>
+                a.darts !== null ? 'text-score-up-text' : 'text-score-down-text',
+              )}>
                 {a.darts !== null ? '✓' : '✗'}
               </span>
-              <span className="w-12 shrink-0 text-sm font-bold tabular-nums text-brand-white">
+              <span className="w-12 shrink-0 font-display text-sm font-bold tabular-nums text-content-primary">
                 {a.value}
               </span>
               {a.darts !== null ? (
@@ -158,90 +142,73 @@ export function CheckoutsGame({ mode, onBack }: Props) {
                   {a.darts} {dartsLabel(a.darts)}
                 </span>
               ) : (
-                <span className="text-xs text-red-400/60">brak</span>
+                <span className="text-xs text-score-down-text">brak</span>
               )}
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── Buttons ──────────────────────────────────────────── */}
-      <div className="shrink-0 p-4 flex flex-col gap-2">
+      {/* ── Keys ─────────────────────────────────────────────── */}
+      <div className="flex shrink-0 flex-col gap-2 p-4">
         <div className="grid grid-cols-3 gap-2">
           {([1, 2, 3] as DartsUsed[]).map(n => (
-            <button
+            <GameKey
               key={n}
-              type="button"
+              tone="accent"
+              label={n}
+              sublabel={dartsLabel(n)}
               onPointerDown={(e) => { e.preventDefault(); if (phase === 'playing') submit(n); }}
-              className="flex flex-col items-center justify-center rounded-2xl bg-brand-purple/80 py-5 text-brand-white hover:bg-brand-purple active:scale-95 transition-colors"
-            >
-              <span className="text-3xl font-black leading-none">{n}</span>
-              <span className="text-[10px] mt-1 font-medium uppercase tracking-wider opacity-70">
-                {dartsLabel(n)}
-              </span>
-            </button>
+            />
           ))}
         </div>
-        <button
-          type="button"
+        <GameKey
+          tone="neutral"
           onPointerDown={(e) => { e.preventDefault(); if (phase === 'playing') submit(null); }}
-          className="rounded-2xl bg-white/5 py-5 text-xl font-semibold text-content-secondary hover:bg-white/10 hover:text-brand-white active:scale-95 transition-colors"
         >
-          Brak trafienia
-        </button>
+          <span className="text-xl font-semibold">Brak trafienia</span>
+        </GameKey>
       </div>
 
       {/* ── Game-over overlay ─────────────────────────────────── */}
       {phase === 'game-over' && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-brand-black/97 px-8 gap-6">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 bg-surface-base px-8">
           <div className="text-center">
-            <p className="text-xs font-medium uppercase tracking-widest text-red-400">
+            <p className="text-xs font-medium uppercase tracking-widest text-score-down-text">
               Koniec gry
             </p>
-            <p className="mt-2 text-5xl font-black text-brand-white tabular-nums">
+            <p className="mt-2 font-display text-5xl font-extrabold tabular-nums text-content-primary">
               {successCount}
             </p>
-            <p className="text-sm text-content-secondary mt-1">
+            <p className="mt-1 text-sm text-content-secondary">
               {successCount === 1 ? 'checkout' : 'checkouty'}
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
+          <div className="grid w-full max-w-xs grid-cols-2 gap-3">
             {[
-              { label: 'Skuteczność',    value: `${hitRate}%` },
+              { label: 'Skuteczność',     value: `${hitRate}%` },
               { label: 'Najlepsza seria', value: String(bestStreak) },
-              { label: 'Prób',           value: String(totalAttempts) },
+              { label: 'Prób',            value: String(totalAttempts) },
               {
                 label: 'Najwyższy',
                 value: String(history.reduce((m, a) => a.darts !== null ? Math.max(m, a.value) : m, MIN_VALUE)),
               },
             ].map(s => (
-              <div key={s.label} className="rounded-xl bg-white/5 p-3 text-center">
+              <div key={s.label} className="rounded-xl bg-surface-overlay p-3 text-center">
                 <p className="text-xs text-content-secondary">{s.label}</p>
-                <p className="mt-1 text-2xl font-black text-brand-white">{s.value}</p>
+                <p className="mt-1 font-display text-2xl font-extrabold tabular-nums text-content-primary">{s.value}</p>
               </div>
             ))}
           </div>
 
-          <div className="flex gap-3 w-full max-w-xs">
-            <button
-              type="button"
-              onClick={restart}
-              className="flex-1 rounded-xl bg-brand-purple/80 py-3 text-sm font-semibold text-brand-white hover:bg-brand-purple transition-colors"
-            >
-              Jeszcze raz
-            </button>
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex-1 rounded-xl border border-border-subtle py-3 text-sm font-medium text-content-secondary hover:text-brand-white transition-colors"
-            >
-              Wróć
-            </button>
+          <div className="flex w-full max-w-xs gap-3">
+            <Button variant="primary" fullWidth onClick={restart}>Jeszcze raz</Button>
+            <Button variant="secondary" fullWidth onClick={onBack}>Wróć</Button>
           </div>
         </div>
       )}
-    </div>
+    </GameShell>
   );
 }
 

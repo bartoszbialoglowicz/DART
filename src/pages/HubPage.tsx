@@ -2,6 +2,10 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { usePlayers, useCreatePlayer, useDeletePlayer } from '../hooks/usePlayers';
 import type { Player } from '../types/player';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
+import { Input } from '../components/ui/Input';
+import { Card } from '../components/ui/Card';
 
 function botLevel(avg: number): string {
   if (avg >= 90) return 'Pro';
@@ -62,7 +66,7 @@ export function HubPage() {
 
       {/* Page header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold tracking-tight text-brand-white">Hub</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-content-primary">Hub</h1>
         <p className="mt-1 text-sm text-content-secondary">
           Zarządzaj własnymi zawodnikami i ustawieniami aplikacji.
         </p>
@@ -76,19 +80,17 @@ export function HubPage() {
               Moje boty
             </h2>
             {bots.length > 0 && (
-              <span className="rounded-full bg-white/8 px-2 py-0.5 text-xs font-bold tabular-nums text-content-secondary">
-                {bots.length}
-              </span>
+              <Badge variant="neutral" mono>{bots.length}</Badge>
             )}
           </div>
           {!showForm && (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setShowForm(true)}
-              className="rounded-lg border border-brand-purple/40 px-3 py-1.5 text-xs font-medium text-brand-white transition-colors hover:bg-brand-purple/10"
             >
               + Dodaj bota
-            </button>
+            </Button>
           )}
         </div>
 
@@ -96,36 +98,34 @@ export function HubPage() {
         {showForm && (
           <form
             onSubmit={handleAdd}
-            className="mb-4 rounded-xl border border-brand-purple/30 bg-brand-purple/5 p-4"
+            className="mb-4 rounded-xl border border-border-accent bg-surface-overlay p-4"
           >
             <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-content-secondary">
               Nowy bot
             </p>
 
             <div className="grid grid-cols-2 gap-3">
-              <input
+              <Input
                 autoFocus
                 type="text"
                 value={firstName}
                 onChange={e => setFirstName(e.target.value)}
                 placeholder="Imię"
                 maxLength={50}
-                className="rounded-lg border border-border-subtle bg-brand-black px-3 py-2 text-sm text-brand-white placeholder:text-content-secondary focus:border-brand-purple focus:outline-none transition-colors"
               />
-              <input
+              <Input
                 type="text"
                 value={lastName}
                 onChange={e => setLastName(e.target.value)}
                 placeholder="Nazwisko"
                 maxLength={50}
-                className="rounded-lg border border-border-subtle bg-brand-black px-3 py-2 text-sm text-brand-white placeholder:text-content-secondary focus:border-brand-purple focus:outline-none transition-colors"
               />
             </div>
 
             <div className="mt-4">
               <div className="mb-2 flex items-baseline justify-between">
                 <span className="text-xs text-content-secondary">Poziom trudności</span>
-                <span className="text-sm font-semibold text-brand-white">
+                <span className="text-sm font-semibold text-content-primary">
                   {botLevel(avg)}
                   <span className="ml-1.5 text-xs font-normal text-content-secondary">
                     śr. {avg}
@@ -139,9 +139,9 @@ export function HubPage() {
                 step="1"
                 value={avgStr}
                 onChange={e => setAvgStr(e.target.value)}
-                className="w-full cursor-pointer accent-brand-purple"
+                className="w-full cursor-pointer accent-content-accent"
               />
-              <div className="mt-1 flex justify-between text-[10px] text-content-secondary/60">
+              <div className="mt-1 flex justify-between text-xs text-content-faint">
                 <span>Rekreacyjny</span>
                 <span>Początkujący</span>
                 <span>Średni</span>
@@ -151,24 +151,26 @@ export function HubPage() {
             </div>
 
             {createBot.isError && (
-              <p className="mt-3 text-xs text-red-400">Nie udało się dodać bota.</p>
+              <p className="mt-3 text-xs text-score-down-text">Nie udało się dodać bota.</p>
             )}
 
             <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => { setShowForm(false); createBot.reset(); }}
-                className="rounded-lg border border-border-subtle px-4 py-2 text-xs font-medium text-content-secondary transition-colors hover:text-brand-white"
               >
                 Anuluj
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
+                variant="primary"
+                size="sm"
+                loading={createBot.isPending}
                 disabled={createBot.isPending || !firstName.trim() || !lastName.trim()}
-                className="rounded-lg bg-brand-purple px-4 py-2 text-xs font-semibold text-brand-white transition-opacity disabled:opacity-40 hover:bg-brand-purple/80"
               >
                 {createBot.isPending ? 'Zapisywanie…' : 'Dodaj'}
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -177,35 +179,36 @@ export function HubPage() {
         {isLoading ? (
           <p className="py-10 text-center text-sm text-content-secondary">Ładowanie…</p>
         ) : bots.length === 0 ? (
-          <div className="rounded-xl border border-border-subtle/40 py-14 text-center">
+          <div className="rounded-xl border border-border-subtle py-14 text-center">
             <p className="text-sm text-content-secondary">Nie masz jeszcze żadnych botów.</p>
             {!showForm && (
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowForm(true)}
-                className="mt-4 rounded-lg border border-brand-purple/40 px-4 py-2 text-sm font-medium text-brand-white transition-colors hover:bg-brand-purple/10"
+                className="mt-4"
               >
                 Utwórz pierwszego bota
-              </button>
+              </Button>
             )}
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border-subtle">
+          <Card padding="none">
             {bots.map((bot, i) => (
               <div
                 key={bot.id}
                 className={[
-                  'flex items-center justify-between px-4 py-3 transition-colors hover:bg-white/3',
-                  i > 0 ? 'border-t border-border-subtle/30' : '',
+                  'flex items-center justify-between px-4 py-3 transition-colors hover:bg-surface-muted',
+                  i > 0 ? 'border-t border-border-subtle' : '',
                 ].join(' ')}
               >
                 <div>
-                  <p className="text-sm font-medium text-brand-white">
+                  <p className="text-sm font-medium text-content-primary">
                     {bot.first_name} {bot.last_name}
                   </p>
                   <p className="text-xs text-content-secondary">
                     {botLevel(Number(bot.average))}
-                    <span className="ml-2 tabular-nums opacity-60">śr. {Number(bot.average).toFixed(1)}</span>
+                    <span className="ml-2 tabular-nums text-content-faint">śr. {Number(bot.average).toFixed(1)}</span>
                   </p>
                 </div>
                 <button
@@ -213,7 +216,7 @@ export function HubPage() {
                   onClick={() => handleDelete(bot)}
                   disabled={deleteBot.isPending}
                   aria-label="Usuń bota"
-                  className="ml-4 rounded-lg p-1.5 text-content-secondary transition-colors hover:text-red-400 disabled:opacity-30"
+                  className="ml-4 rounded-lg p-1.5 text-content-secondary transition-colors hover:text-score-down-text disabled:opacity-30"
                 >
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="3 6 5 6 21 6" />
@@ -224,7 +227,7 @@ export function HubPage() {
                 </button>
               </div>
             ))}
-          </div>
+          </Card>
         )}
       </section>
     </div>

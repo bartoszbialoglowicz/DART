@@ -9,6 +9,8 @@ import { applyResult, applyGroupMatchResult, applyPlayoffResult, generatePlayoff
 import { computeMatchStats } from '../utils/statistics';
 import { statisticsApi } from '../api/statistics';
 import { useTournament, useUpdateTournament } from '../hooks/useTournaments';
+import { Button } from '../components/ui/Button';
+import { cn } from '../components/ui/cn';
 import type { BracketData } from '../types/bracket';
 
 type Tab = 'bracket' | 'stats';
@@ -133,27 +135,24 @@ export function TournamentPage() {
     <div className="flex flex-1 flex-col">
       <div className="flex items-center justify-between border-b border-border-subtle px-8 py-4">
         <div>
-          <h2 className="text-base font-semibold text-brand-white">{bracket.name}</h2>
+          <h2 className="text-base font-semibold text-content-primary">{bracket.name}</h2>
           <p className="mt-0.5 text-xs text-content-secondary">
             {bracket.format === 'knockout' ? 'SKO' : 'Grupy'} · {bracket.playerCount} graczy · BO{bracket.matchFormat.sets} set · BO{bracket.matchFormat.legs} leg
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/turnieje')}
-          className="rounded-lg border border-border-subtle px-4 py-2 text-xs font-medium text-content-secondary transition-colors hover:border-brand-white/30 hover:text-brand-white"
-        >
+        <Button variant="secondary" size="sm" onClick={() => navigate('/turnieje')}>
           Wróć do listy
-        </button>
+        </Button>
       </div>
 
       {statsError && (
-        <div className="flex items-center justify-between gap-4 border-b border-red-500/30 bg-red-500/10 px-8 py-2">
-          <p className="text-xs text-red-400">{statsError}</p>
+        <div className="flex items-center justify-between gap-4 border-b border-border-subtle bg-score-down-soft px-8 py-2">
+          <p className="text-xs text-score-down-text">{statsError}</p>
           <button
             type="button"
             onClick={() => setStatsError(null)}
-            className="shrink-0 text-xs text-red-400/70 hover:text-red-400"
+            className="shrink-0 text-xs text-score-down-text opacity-70 transition-opacity hover:opacity-100"
+            aria-label="Zamknij"
           >
             ✕
           </button>
@@ -166,12 +165,12 @@ export function TournamentPage() {
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={[
+            className={cn(
               'border-b-2 py-3 text-xs font-medium transition-colors',
               tab === t
-                ? 'border-brand-purple text-brand-white'
-                : 'border-transparent text-content-secondary hover:text-brand-white',
-            ].join(' ')}
+                ? 'border-content-accent text-content-primary'
+                : 'border-transparent text-content-secondary hover:text-content-primary',
+            )}
           >
             {t === 'bracket' ? 'Mecze' : 'Statystyki'}
           </button>

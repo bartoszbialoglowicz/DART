@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { DoubleModalPending } from './useMatchEngine';
+import { OptionButton } from '../../ui/OptionButton';
+import { Button } from '../../ui/Button';
 
 export function DoubleModal({
   state, playerName, onConfirm, onSkip,
@@ -22,37 +24,32 @@ export function DoubleModal({
     onConfirm(dartsAtDouble, state.isClosing ? (dartsToClose ?? undefined) : undefined);
   }
 
-  const btnBase   = 'h-12 w-12 rounded-xl text-sm font-bold transition-colors';
-  const btnActive = (selected: boolean) =>
-    selected ? 'bg-brand-purple text-brand-white' : 'bg-white/8 text-content-secondary hover:bg-white/12';
-
   return (
-    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-brand-black/97 px-8 gap-6">
+    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-6 bg-black/95 px-8">
       <div className="text-center">
         <p className="text-xs font-medium uppercase tracking-widest text-content-secondary">
           {playerName} · pozostało {state.remainingBefore}
         </p>
-        <p className="mt-1 text-2xl font-black text-brand-white">
+        <p className="mt-1 font-display text-2xl font-extrabold text-content-primary">
           {state.isClosing ? 'Zamknięcie lega!' : 'Podejście do doubla'}
         </p>
       </div>
 
-      <div className="w-full max-w-xs flex flex-col gap-5">
+      <div className="flex w-full max-w-xs flex-col gap-5">
         {/* Darts aimed at double */}
         <div>
-          <p className="mb-2 text-xs text-content-secondary text-center">
-            Ile lotek celowałeś w <span className="text-brand-white font-semibold">double</span>?
+          <p className="mb-2 text-center text-xs text-content-secondary">
+            Ile lotek celowałeś w <span className="font-semibold text-content-primary">double</span>?
           </p>
           <div className="flex justify-center gap-3">
             {[0, 1, 2, 3].map(n => (
-              <button
+              <OptionButton
                 key={n}
-                type="button"
+                selected={dartsAtDouble === n}
                 onPointerDown={(e) => { e.preventDefault(); setDartsAtDouble(n); }}
-                className={`${btnBase} ${btnActive(dartsAtDouble === n)}`}
               >
                 {n}
-              </button>
+              </OptionButton>
             ))}
           </div>
         </div>
@@ -60,22 +57,21 @@ export function DoubleModal({
         {/* Darts to close — only when this visit closed the leg */}
         {state.isClosing && (
           <div>
-            <p className="mb-2 text-xs text-content-secondary text-center">
-              Ile lotek zajęło <span className="text-brand-white font-semibold">zamknięcie</span>?
+            <p className="mb-2 text-center text-xs text-content-secondary">
+              Ile lotek zajęło <span className="font-semibold text-content-primary">zamknięcie</span>?
             </p>
             <div className="flex justify-center gap-3">
               {[1, 2, 3].map(n => {
                 const invalid = dartsAtDouble !== null && n > dartsAtDouble;
                 return (
-                  <button
+                  <OptionButton
                     key={n}
-                    type="button"
+                    selected={dartsToClose === n}
                     disabled={invalid}
                     onPointerDown={(e) => { e.preventDefault(); if (!invalid) setDartsToClose(n); }}
-                    className={`${btnBase} ${btnActive(dartsToClose === n)} disabled:opacity-25`}
                   >
                     {n}
-                  </button>
+                  </OptionButton>
                 );
               })}
             </div>
@@ -84,21 +80,21 @@ export function DoubleModal({
       </div>
 
       <div className="flex w-full max-w-xs gap-3">
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          fullWidth
           onPointerDown={(e) => { e.preventDefault(); onSkip(); }}
-          className="flex-1 rounded-xl border border-border-subtle py-3 text-sm text-content-secondary hover:text-brand-white transition-colors"
         >
           Pomiń
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="primary"
+          fullWidth
           disabled={!canConfirm}
           onPointerDown={(e) => { e.preventDefault(); handleConfirm(); }}
-          className="flex-1 rounded-xl bg-brand-purple/80 py-3 text-sm font-semibold text-brand-white hover:bg-brand-purple disabled:opacity-30 transition-colors"
         >
           Zatwierdź
-        </button>
+        </Button>
       </div>
     </div>
   );

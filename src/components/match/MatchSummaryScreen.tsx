@@ -1,6 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { LegRecord, MatchSlot } from '../../types/bracket';
 import { computeMatchStats, type PlayerMatchStats } from '../../utils/statistics';
+import { Button } from '../ui/Button';
+import { OptionButton } from '../ui/OptionButton';
+import { cn } from '../ui/cn';
 
 type Props = {
   matchId:       string;
@@ -61,32 +64,28 @@ export function MatchSummaryScreen({
   const bottomCounts = BUCKETS.map(b => bottomVisits.filter(v => v >= b.min && v < b.max).length);
   const maxCount     = Math.max(...topCounts, ...bottomCounts, 1);
 
+  const [selectedLegIdx, setSelectedLegIdx] = useState(0);
+
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-brand-black overflow-y-auto select-none">
+    <div className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-surface-base select-none">
 
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
         <span className="text-xs font-medium uppercase tracking-widest text-content-secondary">
           Podsumowanie
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-content-secondary hover:text-brand-white transition-colors"
-        >
-          Zamknij
-        </button>
+        <Button variant="secondary" size="sm" onClick={onClose}>Zamknij</Button>
       </div>
 
       {/* Winner */}
-      <div className="shrink-0 flex flex-col items-center py-8 px-4 border-b border-border-subtle">
+      <div className="flex shrink-0 flex-col items-center border-b border-border-subtle px-4 py-8">
         <span className="text-xs font-medium uppercase tracking-widest text-content-secondary">
           Zwycięzca
         </span>
-        <span className="mt-2 text-4xl font-black text-brand-white text-center leading-tight">
+        <span className="mt-2 text-center font-display text-4xl font-extrabold leading-tight text-content-primary">
           {winnerName}
         </span>
-        <span className="mt-3 text-2xl font-bold tabular-nums text-brand-purple">
+        <span className="mt-3 font-display text-2xl font-bold tabular-nums text-content-accent">
           {topScore} – {bottomScore}
         </span>
         <span className="mt-0.5 text-xs text-content-secondary">
@@ -95,7 +94,7 @@ export function MatchSummaryScreen({
       </div>
 
       {/* Per-player stats */}
-      <div className="grid grid-cols-2 mx-4 mt-4 overflow-hidden rounded-xl border border-border-subtle">
+      <div className="mx-4 mt-4 grid grid-cols-2 overflow-hidden rounded-xl border border-border-subtle">
         <PlayerStatCard
           name={topName}
           stats={statsTop}
@@ -112,7 +111,7 @@ export function MatchSummaryScreen({
       </div>
 
       {/* Score distribution */}
-      <div className="mx-4 mt-4 mb-2 rounded-xl border border-border-subtle p-4">
+      <div className="mx-4 mt-4 rounded-xl border border-border-subtle p-4">
         <p className="mb-4 text-xs font-medium uppercase tracking-widest text-content-secondary">
           Rozkład wyników wizyt
         </p>
@@ -125,23 +124,38 @@ export function MatchSummaryScreen({
         />
       </div>
 
+      {/* Leg scorecards */}
+      {completedLegs.length > 0 && (
+        <div className="mx-4 mb-2 mt-4 rounded-xl border border-border-subtle p-4">
+          <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
+            Tablica legów
+          </p>
+          {completedLegs.length > 1 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {completedLegs.map((_, i) => (
+                <OptionButton
+                  key={i}
+                  selected={selectedLegIdx === i}
+                  onClick={() => setSelectedLegIdx(i)}
+                >
+                  Leg {i + 1}
+                </OptionButton>
+              ))}
+            </div>
+          )}
+          <LegScorecard
+            leg={completedLegs[selectedLegIdx]}
+            topName={topName}
+            bottomName={bottomName}
+          />
+        </div>
+      )}
+
       {/* Actions */}
-      <div className="shrink-0 mt-auto px-4 pb-8 pt-4 flex gap-3">
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 rounded-xl border border-border-subtle py-3 text-sm font-medium text-content-secondary hover:text-brand-white transition-colors"
-        >
-          Zamknij
-        </button>
+      <div className="mt-auto flex shrink-0 gap-3 px-4 pb-8 pt-4">
+        <Button variant="secondary" size="lg" fullWidth onClick={onClose}>Zamknij</Button>
         {onSave && (
-          <button
-            type="button"
-            onClick={onSave}
-            className="flex-1 rounded-xl bg-brand-purple/80 py-3 text-sm font-semibold text-brand-white hover:bg-brand-purple transition-colors"
-          >
-            Zapisz wynik
-          </button>
+          <Button variant="primary" size="lg" fullWidth onClick={onSave}>Zapisz wynik</Button>
         )}
       </div>
     </div>
@@ -159,24 +173,26 @@ function PlayerStatCard({
   isWinner: boolean;
   className?: string;
 }) {
+  const doublePct = stats.double_attempts > 0
+    ? Math.round(stats.double_hits / stats.double_attempts * 100) + '%'
+    : '—';
+
   return (
-    <div className={[
-      'flex flex-col p-4 transition-colors',
-      isWinner ? 'bg-brand-purple/5' : '',
-      className ?? '',
-    ].join(' ')}>
-      {isWinner && (
-        <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-brand-purple">
-          Wygrał
-        </span>
-      )}
-      <span className="text-sm font-semibold text-brand-white truncate">{name}</span>
+    <div className={cn('flex flex-col p-4', isWinner && 'bg-accent-soft', className)}>
+      {/* Reserve space for winner label in both cards to keep rows aligned */}
+      <span className={cn(
+        'mb-1 text-xs font-bold uppercase tracking-widest text-content-accent',
+        !isWinner && 'invisible',
+      )}>
+        Wygrał
+      </span>
+      <span className="truncate text-sm font-semibold text-content-primary">{name}</span>
 
       <div className="mt-3">
-        <span className="text-3xl font-black tabular-nums leading-none text-brand-purple">
+        <span className="font-display text-3xl font-extrabold tabular-nums leading-none text-content-accent">
           {stats.match_average > 0 ? stats.match_average.toFixed(1) : '—'}
         </span>
-        <span className="mt-0.5 block text-[10px] text-content-secondary">śred. wizyty</span>
+        <span className="mt-0.5 block text-xs text-content-secondary">śred. wizyty</span>
       </div>
 
       <div className="mt-3 space-y-1.5">
@@ -184,16 +200,91 @@ function PlayerStatCard({
         <StatRow label="100+" value={stats.high_checkouts} />
         <StatRow label="≤15D" value={stats.short_legs} />
         <StatRow label="Max"  value={maxVisit} />
+        <StatRow label="% D"  value={doublePct} />
       </div>
     </div>
   );
 }
 
-function StatRow({ label, value }: { label: string; value: number }) {
+function StatRow({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex items-center justify-between gap-2">
       <span className="text-xs text-content-secondary">{label}</span>
-      <span className="text-sm font-bold tabular-nums text-brand-white">{value}</span>
+      <span className="text-sm font-bold tabular-nums text-content-primary">{value}</span>
+    </div>
+  );
+}
+
+function LegScorecard({
+  leg, topName, bottomName,
+}: {
+  leg: LegRecord;
+  topName: string;
+  bottomName: string;
+}) {
+  const wonTop = leg.winner === 'top';
+  return (
+    <div>
+      {/* Column headers — 1fr / 2rem / 1fr expressed on-scale via flex */}
+      <div className="mb-2 flex items-baseline gap-1 border-b border-border-subtle pb-2">
+        <span className={cn(
+          'flex-1 truncate text-xs font-semibold',
+          wonTop ? 'text-content-accent' : 'text-content-secondary',
+        )}>
+          {topName}
+        </span>
+        <span className="w-8 shrink-0 text-center text-xs text-content-faint">D</span>
+        <span className={cn(
+          'flex-1 truncate text-right text-xs font-semibold',
+          !wonTop ? 'text-content-accent' : 'text-content-secondary',
+        )}>
+          {bottomName}
+        </span>
+      </div>
+
+      {/* Rounds */}
+      {leg.rounds.map((r, i) => {
+        const darts = (i + 1) * 3;
+        return (
+          <div
+            key={i}
+            className="flex items-baseline gap-1 border-b border-border-subtle py-1.5 last:border-0"
+          >
+            {/* p0: score · remaining */}
+            <div className="flex flex-1 items-baseline gap-1.5">
+              {r.p0 ? (
+                <>
+                  <span className="font-display text-sm font-bold tabular-nums text-content-primary">
+                    {r.p0.score}
+                  </span>
+                  <span className="text-xs tabular-nums text-content-faint">
+                    {r.p0.remaining}
+                  </span>
+                </>
+              ) : null}
+            </div>
+
+            {/* Dart count */}
+            <span className="w-8 shrink-0 self-center text-center text-xs tabular-nums text-content-faint">
+              {darts}
+            </span>
+
+            {/* p1: remaining · score */}
+            <div className="flex flex-1 items-baseline justify-end gap-1.5">
+              {r.p1 ? (
+                <>
+                  <span className="text-xs tabular-nums text-content-faint">
+                    {r.p1.remaining}
+                  </span>
+                  <span className="font-display text-sm font-bold tabular-nums text-content-primary">
+                    {r.p1.score}
+                  </span>
+                </>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -225,7 +316,7 @@ function ScoreHistogram({
         <line
           x1={PAD_H} y1={CHART_BOT}
           x2={W - PAD_H} y2={CHART_BOT}
-          stroke="#27272a" strokeWidth="1"
+          stroke="var(--color-border-subtle)" strokeWidth="1"
         />
         {BUCKETS.map((b, i) => {
           const bx = PAD_H + i * bucketW;
@@ -239,12 +330,12 @@ function ScoreHistogram({
               <rect
                 x={topX} y={CHART_BOT - (topH || 1.5)}
                 width={barW} height={topH || 1.5}
-                fill={topCounts[i] > 0 ? '#7c3aed' : '#27272a'} rx="2"
+                fill={topCounts[i] > 0 ? 'var(--color-content-accent)' : 'var(--color-border-subtle)'} rx="2"
               />
               {topCounts[i] > 0 && (
                 <text
                   x={topX + barW / 2} y={CHART_BOT - topH - 3}
-                  textAnchor="middle" fontSize="8" fill="#a78bfa"
+                  textAnchor="middle" fontSize="8" fill="var(--color-accent-text)"
                 >
                   {topCounts[i]}
                 </text>
@@ -253,12 +344,12 @@ function ScoreHistogram({
               <rect
                 x={botX} y={CHART_BOT - (botH || 1.5)}
                 width={barW} height={botH || 1.5}
-                fill={bottomCounts[i] > 0 ? '#4b5563' : '#27272a'} rx="2"
+                fill={bottomCounts[i] > 0 ? 'var(--color-content-secondary)' : 'var(--color-border-subtle)'} rx="2"
               />
               {bottomCounts[i] > 0 && (
                 <text
                   x={botX + barW / 2} y={CHART_BOT - botH - 3}
-                  textAnchor="middle" fontSize="8" fill="#9ca3af"
+                  textAnchor="middle" fontSize="8" fill="var(--color-content-secondary)"
                 >
                   {bottomCounts[i]}
                 </text>
@@ -266,7 +357,7 @@ function ScoreHistogram({
 
               <text
                 x={bx + bucketW / 2} y={H - 6}
-                textAnchor="middle" fontSize="9" fill="#52525b"
+                textAnchor="middle" fontSize="9" fill="var(--color-content-faint)"
               >
                 {b.label}
               </text>
@@ -277,12 +368,12 @@ function ScoreHistogram({
 
       <div className="mt-2 flex items-center justify-center gap-6 text-xs text-content-secondary">
         <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-5 rounded-sm bg-brand-purple" />
-          <span className="truncate max-w-[120px]">{topName}</span>
+          <div className="h-2.5 w-5 rounded-sm bg-content-accent" />
+          <span className="max-w-32 truncate">{topName}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="h-2.5 w-5 rounded-sm bg-[#4b5563]" />
-          <span className="truncate max-w-[120px]">{bottomName}</span>
+          <div className="h-2.5 w-5 rounded-sm bg-content-secondary" />
+          <span className="max-w-32 truncate">{bottomName}</span>
         </div>
       </div>
     </div>

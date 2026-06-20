@@ -35,7 +35,7 @@ export function KnockoutBracket({ rounds, playerCount, matchFormat, isOwner, onS
         {rounds.map((round, i) => (
           <Fragment key={round.id}>
             <div
-              className="text-center text-xs font-semibold tracking-widest text-brand-purple uppercase"
+              className="text-center text-xs font-semibold uppercase tracking-widest text-content-accent"
               style={{ width: ROUND_WIDTH }}
             >
               {round.label}
@@ -109,12 +109,12 @@ function ConnectorColumn({ matchCount, totalHeight }: ConnectorProps) {
 
 function HLine({ y, left, width }: { y: number; left: number; width: number }) {
   return (
-    <div className="absolute bg-brand-purple-800" style={{ top: y - 1, left, width, height: 2 }} />
+    <div className="absolute bg-border-subtle" style={{ top: y - 1, left, width, height: 2 }} />
   );
 }
 
 function VLine({ x, from, to }: { x: number; from: number; to: number }) {
   return (
-    <div className="absolute bg-brand-purple-800" style={{ top: from, left: x, width: 2, height: to - from }} />
+    <div className="absolute bg-border-subtle" style={{ top: from, left: x, width: 2, height: to - from }} />
   );
 }

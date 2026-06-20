@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   useLeague,
   useLeagueSchedule,
@@ -9,14 +10,25 @@ import {
 import { StandingsTab } from '../components/league/StandingsTab';
 import { ScheduleTab } from '../components/league/ScheduleTab';
 import { RosterTab } from '../components/league/RosterTab';
-import { LEAGUE_STATUS_COLOR, LEAGUE_STATUS_LABEL } from '../utils/colors';
+import { LeagueSetupStepper } from '../components/league/LeagueSetupStepper';
+import { LeagueStatusBadge } from '../components/league/LeagueStatusBadge';
+import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { Tag } from '../components/ui/Tag';
+import { cn } from '../components/ui/cn';
 
 type Tab = 'tabela' | 'terminarz' | 'skład';
 
+const TAB_OPTIONS = [
+  { value: 'tabela'    as Tab, label: 'Tabela' },
+  { value: 'terminarz' as Tab, label: 'Terminarz' },
+  { value: 'skład'     as Tab, label: 'Skład' },
+];
+
 export function LeagueDetailPage() {
-  const { id }        = useParams<{ id: string }>();
-  const leagueId      = Number(id);
-  const [tab, setTab] = useState<Tab>('tabela');
+  const { id }                  = useParams<{ id: string }>();
+  const leagueId                = Number(id);
+  const [tab, setTab]           = useState<Tab>('tabela');
+  const { username, playerId }  = useAuth();
 
   const { data: league,    isLoading } = useLeague(leagueId);
   const { data: schedule = []        } = useLeagueSchedule(leagueId);
@@ -31,138 +43,152 @@ export function LeagueDetailPage() {
     );
   }
 
-  const isDraft    = league.status === 'draft';
-  const scoreLabel = league.match_format === 'sets' ? 'S' : 'L';
+  const isDraft         = league.status === 'draft';
+  const scoreLabel      = league.match_format === 'sets' ? 'S' : 'L';
+  const isOwner         = !!username && username === league.owner_username;
+  const currentMemberId = playerId != null
+    ? (league.members.find(m => m.player_id === playerId)?.id ?? null)
+    : null;
+
+  const formatChip = league.match_format === 'sets'
+    ? `Sety best of ${league.sets} · Legi best of ${league.legs}`
+    : `Legi best of ${league.legs}`;
+
+  const rosterDone   = league.member_count >= 2;
+  const scheduleDone = league.match_count > 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-6 lg:px-8">
 
       {/* Breadcrumb */}
       <div className="mb-1 text-xs text-content-secondary">
-        <Link to="/ligi" className="hover:text-brand-white transition-colors">Ligi</Link>
-        <span className="mx-1.5 opacity-40">/</span>
+        <Link to="/ligi" className="transition-colors hover:text-content-primary">Ligi</Link>
+        <span className="mx-1.5 text-content-faint">/</span>
         <span>{league.name}</span>
       </div>
 
       {/* Title + meta */}
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-brand-white">{league.name}</h1>
-          <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] text-content-secondary">
-            <Chip>{league.member_count} graczy</Chip>
-            <Chip>{league.matches_per_pair}× każdy z każdym</Chip>
-            <Chip>
-              {league.match_format === 'sets'
-                ? `Sety best of ${league.sets} · Legi best of ${league.legs}`
-                : `Legi best of ${league.legs}`}
-            </Chip>
-            <Chip>{league.points_win} pkt wyg. / {league.points_draw} pkt remis</Chip>
-            {league.is_private && <Chip>Prywatna</Chip>}
-            <StatusChip status={league.status} />
+          <h1 className="text-2xl font-bold text-content-primary">{league.name}</h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <Tag>{league.member_count} graczy</Tag>
+            <Tag>{league.matches_per_pair}× każdy z każdym</Tag>
+            <Tag>{formatChip}</Tag>
+            <Tag>{league.points_win} pkt wyg. / {league.points_draw} pkt remis</Tag>
+            {league.is_private && <Tag>Prywatna</Tag>}
+            <LeagueStatusBadge status={league.status} />
           </div>
         </div>
       </div>
 
-      {/* Wizard banner — only when draft */}
-      {isDraft && (
-        <div className="mb-5 rounded-xl border border-amber-500/25 bg-amber-500/8 px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-amber-300">Kreator ligi</p>
-              <p className="mt-0.5 text-xs text-amber-300/70">
-                Dodaj graczy w zakładce <strong>Skład</strong>, następnie wygeneruj terminarz
-                i kliknij <strong>Zakończ kreator</strong>.
-                Po zatwierdzeniu skład i konfiguracja nie będą mogły być zmienione.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => finalize.mutate()}
-              disabled={finalize.isPending || league.member_count < 2}
-              title={league.member_count < 2 ? 'Dodaj co najmniej 2 graczy' : undefined}
-              className="shrink-0 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-black transition-opacity disabled:opacity-40 hover:bg-amber-400"
-            >
-              {finalize.isPending ? 'Zatwierdzanie…' : 'Zakończ kreator'}
-            </button>
-          </div>
-
-          {/* Wizard steps */}
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <WizardStep done label="Konfiguracja" />
-            <StepDivider />
-            <WizardStep done={league.member_count >= 2} label={`Gracze (${league.member_count})`} />
-            <StepDivider />
-            <WizardStep done={league.match_count > 0} label="Terminarz" />
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="mb-5 flex gap-1 rounded-xl border border-border-subtle bg-white/3 p-1">
-        {(['tabela', 'terminarz', 'skład'] as Tab[]).map(t => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={[
-              'flex-1 rounded-lg py-2 text-sm font-medium capitalize transition-colors',
-              tab === t
-                ? 'bg-brand-purple/20 text-brand-white'
-                : 'text-content-secondary hover:text-brand-white',
-            ].join(' ')}
-          >
-            {t === 'tabela' ? 'Tabela' : t === 'terminarz' ? 'Terminarz' : 'Skład'}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'tabela'    && <StandingsTab rows={standings} scoreLabel={scoreLabel} />}
-      {tab === 'terminarz' && (
-        <ScheduleTab
-          leagueId={leagueId}
-          matches={schedule}
-          scoreLabel={scoreLabel}
-          isDraft={isDraft}
-          matchCount={league.match_count}
-          memberCount={league.member_count}
+      {isDraft ? (
+        /* ── Draft: guided setup stepper ─────────────────────── */
+        <LeagueSetupStepper
+          initialStep={!rosterDone ? 1 : !scheduleDone ? 2 : 3}
+          canFinalize={rosterDone && scheduleDone}
+          finalizing={finalize.isPending}
+          onFinalize={() => finalize.mutate()}
+          steps={[
+            {
+              label: 'Konfiguracja',
+              done:  true,
+              content: (
+                <div className="rounded-xl border border-border-subtle bg-surface-overlay p-5">
+                  <p className="text-sm text-content-secondary">
+                    Konfiguracja ustalona przy tworzeniu ligi — w szkicu pozostaje stała.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <Tag>{formatChip}</Tag>
+                    <Tag>{league.matches_per_pair}× każdy z każdym</Tag>
+                    <Tag>{league.points_win} pkt wyg. / {league.points_draw} pkt remis</Tag>
+                  </div>
+                </div>
+              ),
+            },
+            {
+              label: 'Gracze',
+              done:  rosterDone,
+              content: <RosterTab leagueId={leagueId} isDraft isOwner={isOwner} />,
+            },
+            {
+              label: 'Terminarz',
+              done:  scheduleDone,
+              content: (
+                <ScheduleTab
+                  leagueId={leagueId}
+                  matches={schedule}
+                  scoreLabel={scoreLabel}
+                  isDraft={isDraft}
+                  matchCount={league.match_count}
+                  memberCount={league.member_count}
+                  isOwner={isOwner}
+                  currentMemberId={currentMemberId}
+                />
+              ),
+            },
+            {
+              label: 'Zatwierdź',
+              done:  false,
+              content: (
+                <div className="flex flex-col gap-4 rounded-xl border border-border-subtle bg-surface-overlay p-5">
+                  <ReviewRow ok={rosterDone}   label="Gracze"    detail={`${league.member_count} w składzie`} hint="dodaj min. 2 graczy" />
+                  <ReviewRow ok={scheduleDone} label="Terminarz" detail={`${league.match_count} meczów`}      hint="wygeneruj w kroku Terminarz" />
+                  <p className="text-xs text-content-faint">
+                    Po zatwierdzeniu skład i konfiguracja nie będą mogły zostać zmienione.
+                  </p>
+                </div>
+              ),
+            },
+          ]}
         />
+      ) : (
+        /* ── Active / finished: tabs ─────────────────────────── */
+        <>
+          <SegmentedControl
+            className="mb-5"
+            fullWidth
+            aria-label="Sekcje ligi"
+            value={tab}
+            onChange={setTab}
+            options={TAB_OPTIONS}
+          />
+
+          {tab === 'tabela'    && <StandingsTab rows={standings} scoreLabel={scoreLabel} />}
+          {tab === 'terminarz' && (
+            <ScheduleTab
+              leagueId={leagueId}
+              matches={schedule}
+              scoreLabel={scoreLabel}
+              isDraft={isDraft}
+              matchCount={league.match_count}
+              memberCount={league.member_count}
+              isOwner={isOwner}
+              currentMemberId={currentMemberId}
+            />
+          )}
+          {tab === 'skład'     && <RosterTab leagueId={leagueId} isDraft={isDraft} isOwner={isOwner} />}
+        </>
       )}
-      {tab === 'skład'     && <RosterTab leagueId={leagueId} isDraft={isDraft} />}
     </div>
   );
 }
 
-// ── Local helpers (used only in this page's header) ───────────────────────────
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-full border border-border-subtle px-2.5 py-0.5">{children}</span>;
-}
-
-function StatusChip({ status }: { status: string }) {
+function ReviewRow({ ok, label, detail, hint }: {
+  ok: boolean; label: string; detail: string; hint: string;
+}) {
   return (
-    <span className={`rounded-full border px-2.5 py-0.5 font-bold uppercase tracking-wide ${LEAGUE_STATUS_COLOR[status] ?? ''}`}>
-      {LEAGUE_STATUS_LABEL[status] ?? status}
-    </span>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <span className={cn(
+          'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+          ok ? 'bg-score-up-soft text-score-up-text' : 'border border-border-subtle text-content-faint',
+        )}>
+          {ok ? '✓' : '!'}
+        </span>
+        <span className="text-sm font-medium text-content-primary">{label}</span>
+      </div>
+      <span className="text-xs text-content-secondary">{ok ? detail : hint}</span>
+    </div>
   );
-}
-
-function WizardStep({ done, label }: { done: boolean; label: string }) {
-  return (
-    <span className={[
-      'flex items-center gap-1.5 font-medium',
-      done ? 'text-amber-300' : 'text-amber-300/40',
-    ].join(' ')}>
-      <span className={[
-        'flex h-4 w-4 items-center justify-center rounded-full text-[10px]',
-        done ? 'bg-amber-400 text-black' : 'border border-amber-500/30 text-amber-500/40',
-      ].join(' ')}>
-        {done ? '✓' : '·'}
-      </span>
-      {label}
-    </span>
-  );
-}
-
-function StepDivider() {
-  return <span className="text-amber-500/30 select-none">—</span>;
 }

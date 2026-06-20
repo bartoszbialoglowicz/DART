@@ -1,6 +1,9 @@
 import type { BracketMatch, LegRecord, LegRound } from '../../../types/bracket';
 import type { MatchFormat } from '../../../types/tournament';
-import { MatchSummaryScreen } from '../../match/MatchSummaryScreen';
+import { MatchSummaryScreen } from '../MatchSummaryScreen';
+import { Button } from '../../ui/Button';
+import { cn } from '../../ui/cn';
+import { GameShell } from '../../game/GameShell';
 import { useMatchEngine } from './useMatchEngine';
 import { PlayerHeader } from './PlayerHeader';
 import { DoubleModal } from './DoubleModal';
@@ -63,24 +66,10 @@ export function LiveMatchScreen(props: Props) {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-brand-black select-none">
+    <GameShell title="Na żywo" onClose={onClose}>
 
       {/* ── Top section ──────────────────────────────────── */}
-      <div className="flex flex-col overflow-hidden" style={{ height: isOwner ? '60%' : '100%' }}>
-
-        {/* Header bar */}
-        <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
-          <span className="text-xs font-medium uppercase tracking-widest text-content-secondary">
-            Na żywo
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-border-subtle px-3 py-1.5 text-xs font-medium text-content-secondary hover:text-brand-white transition-colors"
-          >
-            Zamknij
-          </button>
-        </div>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 
         {/* Player headers */}
         <div className="flex shrink-0 border-b border-border-subtle">
@@ -95,9 +84,9 @@ export function LiveMatchScreen(props: Props) {
             align="left"
             onClick={canToggleStart ? () => setStartPlayer(0) : undefined}
           />
-          <div className="w-14 shrink-0 border-x border-border-subtle flex flex-col items-center justify-center py-3 gap-1">
+          <div className="flex w-14 shrink-0 flex-col items-center justify-center gap-1 border-x border-border-subtle py-3">
             {canToggleStart ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4 text-brand-purple/50">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-4 w-4 text-content-faint">
                 <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
               </svg>
             ) : (
@@ -126,58 +115,58 @@ export function LiveMatchScreen(props: Props) {
             const canEdit       = isOwner && phase === 'playing' && !isCpuTurn;
 
             return (
-              <div key={i} className={`flex items-center border-b border-border-subtle/20 ${isEditRow ? 'bg-brand-purple/10' : ''}`}>
+              <div key={i} className={cn('flex items-center border-b border-border-subtle', isEditRow && 'bg-accent-soft')}>
                 <div
-                  className={[
+                  className={cn(
                     'flex flex-1 items-center justify-between px-3 py-2.5',
-                    canEdit && round.p0 ? 'cursor-pointer active:bg-brand-purple/10' : '',
-                  ].join(' ')}
+                    canEdit && round.p0 && 'cursor-pointer active:bg-accent-soft',
+                  )}
                   onPointerDown={canEdit && round.p0 ? (e) => { e.preventDefault(); openEdit(i, 0); } : undefined}
                 >
                   {round.p0 && (
                     <>
-                      <span className={[
-                        'text-xl font-semibold tabular-nums',
-                        isEditRow && editTarget?.player === 0 ? 'text-brand-purple' : 'text-brand-white',
-                      ].join(' ')}>
+                      <span className={cn(
+                        'font-display text-xl font-bold tabular-nums',
+                        isEditRow && editTarget?.player === 0 ? 'text-content-accent' : 'text-content-primary',
+                      )}>
                         {round.p0.score}
                       </span>
-                      <span className="text-xl tabular-nums text-content-secondary">
+                      <span className="font-display text-xl tabular-nums text-content-secondary">
                         {round.p0.remaining}
                       </span>
                     </>
                   )}
                 </div>
 
-                <div className="w-14 shrink-0 border-x border-border-subtle flex items-center justify-center py-2.5">
-                  <span className="text-base tabular-nums text-content-secondary">{darts}</span>
+                <div className="flex w-14 shrink-0 items-center justify-center border-x border-border-subtle py-2.5">
+                  <span className="font-display text-base tabular-nums text-content-secondary">{darts}</span>
                 </div>
 
                 <div
-                  className={[
+                  className={cn(
                     'flex flex-1 items-center justify-between px-3 py-2.5',
-                    canEdit && round.p1 ? 'cursor-pointer active:bg-brand-purple/10' : '',
-                  ].join(' ')}
+                    canEdit && round.p1 && 'cursor-pointer active:bg-accent-soft',
+                  )}
                   onPointerDown={canEdit && round.p1 ? (e) => { e.preventDefault(); openEdit(i, 1); } : undefined}
                 >
                   {round.p1 ? (
                     <>
-                      <span className="text-xl tabular-nums text-content-secondary">
+                      <span className="font-display text-xl tabular-nums text-content-secondary">
                         {round.p1.remaining}
                       </span>
-                      <span className={[
-                        'text-xl font-semibold tabular-nums',
-                        isEditRow && editTarget?.player === 1 ? 'text-brand-purple' : 'text-brand-white',
-                      ].join(' ')}>
+                      <span className={cn(
+                        'font-display text-xl font-bold tabular-nums',
+                        isEditRow && editTarget?.player === 1 ? 'text-content-accent' : 'text-content-primary',
+                      )}>
                         {round.p1.score}
                       </span>
                     </>
                   ) : showP1Preview ? (
                     <>
-                      <span className="text-base tabular-nums text-content-secondary opacity-50">
+                      <span className="font-display text-base tabular-nums text-content-secondary opacity-50">
                         {p1Remaining - inputNum}
                       </span>
-                      <span className="text-base font-semibold tabular-nums text-brand-purple opacity-60">
+                      <span className="font-display text-base font-bold tabular-nums text-content-accent opacity-60">
                         {inputNum}
                       </span>
                     </>
@@ -188,13 +177,13 @@ export function LiveMatchScreen(props: Props) {
           })}
 
           {p0Pending && (
-            <div className="flex items-center border-b border-border-subtle/20 opacity-50">
+            <div className="flex items-center border-b border-border-subtle opacity-50">
               <div className="flex flex-1 items-center justify-between px-3 py-2.5">
-                <span className="text-base font-semibold tabular-nums text-brand-purple">{inputNum}</span>
-                <span className="text-base tabular-nums text-content-secondary">{p0Remaining - inputNum}</span>
+                <span className="font-display text-base font-bold tabular-nums text-content-accent">{inputNum}</span>
+                <span className="font-display text-base tabular-nums text-content-secondary">{p0Remaining - inputNum}</span>
               </div>
-              <div className="w-14 shrink-0 border-x border-border-subtle flex items-center justify-center py-2.5">
-                <span className="text-sm tabular-nums text-white/20">{(rounds.length + 1) * 3}</span>
+              <div className="flex w-14 shrink-0 items-center justify-center border-x border-border-subtle py-2.5">
+                <span className="font-display text-sm tabular-nums text-content-faint">{(rounds.length + 1) * 3}</span>
               </div>
               <div className="flex-1" />
             </div>
@@ -204,19 +193,19 @@ export function LiveMatchScreen(props: Props) {
         </div>
 
         {input !== '' && (
-          <div className="shrink-0 flex items-baseline justify-center gap-3 border-t border-border-subtle/30 px-4 py-2.5">
-            <span className={[
-              'text-4xl font-black tabular-nums leading-none',
-              isOverMax || editWouldCheckout ? 'text-red-400' : 'text-brand-white',
-            ].join(' ')}>
+          <div className="flex shrink-0 items-baseline justify-center gap-3 border-t border-border-subtle px-4 py-2.5">
+            <span className={cn(
+              'font-display text-4xl font-extrabold tabular-nums leading-none',
+              isOverMax || editWouldCheckout ? 'text-score-down-text' : 'text-content-primary',
+            )}>
               {inputNum}
             </span>
             {!isOverMax && !editWouldCheckout ? (
-              <span className="text-lg tabular-nums text-content-secondary leading-none">
+              <span className="font-display text-lg tabular-nums leading-none text-content-secondary">
                 → {effectiveMax - inputNum}
               </span>
             ) : (
-              <span className="text-sm text-red-400 leading-none">
+              <span className="text-sm leading-none text-score-down-text">
                 {isOverMax ? `max ${effectiveMax}` : 'nie można zamknąć lega'}
               </span>
             )}
@@ -229,14 +218,14 @@ export function LiveMatchScreen(props: Props) {
           <div className="h-px shrink-0 bg-border-subtle" />
 
           {/* ── Bottom 40% — numpad or CPU thinking ──────────── */}
-          <div className="flex flex-col gap-2 p-4" style={{ height: '40%' }}>
+          <div className="flex h-2/5 flex-col gap-2 p-4">
             {editTarget !== null && (
-              <div className="flex shrink-0 items-center justify-between rounded-lg border border-brand-purple/30 bg-brand-purple/10 px-3 py-1.5">
+              <div className="flex shrink-0 items-center justify-between rounded-lg border border-border-accent bg-accent-soft px-3 py-1.5">
                 <span className="text-xs text-content-secondary">
-                  Edycja: <span className="font-semibold text-brand-white">{playerName(editTarget.player)}</span>
+                  Edycja: <span className="font-semibold text-content-primary">{playerName(editTarget.player)}</span>
                   {' · runda '}{editTarget.roundIdx + 1}
                   {' · stary wynik: '}
-                  <span className="font-semibold text-brand-white">
+                  <span className="font-semibold text-content-primary">
                     {editTarget.player === 0
                       ? rounds[editTarget.roundIdx].p0?.score
                       : rounds[editTarget.roundIdx].p1?.score}
@@ -245,7 +234,7 @@ export function LiveMatchScreen(props: Props) {
                 <button
                   type="button"
                   onPointerDown={(e) => { e.preventDefault(); setEditTarget(null); setInput(''); }}
-                  className="ml-2 shrink-0 text-xs text-content-secondary hover:text-brand-white"
+                  className="ml-2 shrink-0 text-xs text-content-secondary hover:text-content-primary"
                 >
                   Anuluj
                 </button>
@@ -260,7 +249,7 @@ export function LiveMatchScreen(props: Props) {
             ) : (
               <>
                 {rows.map((row, ri) => (
-                  <div key={ri} className="grid grid-cols-3 gap-2 flex-1">
+                  <div key={ri} className="grid flex-1 grid-cols-3 gap-2">
                     {row.map(({ label, onPress, variant }) => (
                       <NumKey
                         key={label}
@@ -280,24 +269,20 @@ export function LiveMatchScreen(props: Props) {
 
       {/* ── Leg / Set won overlay ─────────────────── */}
       {(phase === 'leg-won' || phase === 'set-won') && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-brand-black/95 px-8">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-surface-base px-8">
           <span className="text-xs font-medium uppercase tracking-widest text-content-secondary">
             {phase === 'set-won' ? 'Set dla' : 'Leg dla'}
           </span>
-          <span className="mt-2 text-center text-4xl font-black text-brand-white">
+          <span className="mt-2 text-center font-display text-4xl font-extrabold text-content-primary">
             {playerName(legWinner)}
           </span>
-          <span className="mt-3 text-2xl tabular-nums font-bold text-brand-purple">
+          <span className="mt-3 font-display text-2xl font-bold tabular-nums text-content-accent">
             {overlayScore}
           </span>
-          <div className="mt-10 flex gap-3 w-full max-w-xs">
-            <button
-              type="button"
-              onClick={startNext}
-              className="flex-1 rounded-xl bg-brand-purple/80 py-3 text-sm font-semibold text-brand-white hover:bg-brand-purple transition-colors"
-            >
+          <div className="mt-10 flex w-full max-w-xs gap-3">
+            <Button variant="primary" size="lg" fullWidth onClick={startNext}>
               {phase === 'set-won' ? 'Następny set' : 'Następny leg'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -332,6 +317,6 @@ export function LiveMatchScreen(props: Props) {
           onSave={isOwner ? finishMatch : undefined}
         />
       )}
-    </div>
+    </GameShell>
   );
 }

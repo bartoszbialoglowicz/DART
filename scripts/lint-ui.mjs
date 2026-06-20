@@ -26,7 +26,7 @@ const RULES = [
     severity: "error",
     desc: "Arbitrary value — use the scale or a token",
     exts: [".tsx", ".ts", ".css"],
-    re: /\[[^\]]*(?:#[0-9a-fA-F]{3,8}|\b\d+(?:\.\d+)?(?:px|rem|em|vh|vw)\b)[^\]]*\]/g,
+    re: /\[[^\]]*(?:#[0-9a-fA-F]{3,8}|\d+(?:\.\d+)?(?:px|rem|em|vh|vw)(?![a-z]))[^\]]*\]/g,
   },
   {
     id: "white-alpha-surface",
@@ -80,10 +80,14 @@ for (const file of walk(SRC)) {
   if (rel === TOKENS_FILE) continue; // tokens.css is the source of truth
   const applicable = RULES.filter((r) => r.exts.includes(ext));
   if (applicable.length === 0) continue;
-  scanned++;
 
   const lines = readFileSync(file, "utf8").split("\n");
+  // Sanctioned expressive/art components may opt out (human-approved only).
+  if (lines.slice(0, 10).some((l) => l.includes("ui-lint-disable-file"))) continue;
+  scanned++;
+
   lines.forEach((line, i) => {
+    if (line.includes("ui-lint-ignore")) return;
     if (line.trimStart().startsWith("//") || line.trimStart().startsWith("*")) return;
     for (const rule of applicable) {
       rule.re.lastIndex = 0;

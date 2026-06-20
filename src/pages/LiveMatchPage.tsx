@@ -2,8 +2,8 @@ import { useRef } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTournament, useUpdateMatchLeg, useUpdateTournament } from '../hooks/useTournaments';
-import { LiveMatchScreen } from '../components/bracket/LiveMatchScreen';
-import { LiveMatchViewer } from '../components/bracket/LiveMatchViewer';
+import { LiveMatchScreen } from '../components/match/LiveMatchScreen';
+import { LiveMatchViewer } from '../components/match/LiveMatchViewer';
 import { buildManualResult } from '../utils/simulate';
 import { applyResult, applyGroupMatchResult, applyPlayoffResult } from '../utils/bracket';
 import { computeMatchStats } from '../utils/statistics';
@@ -51,7 +51,7 @@ export function LiveMatchPage() {
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-brand-black">
+      <div className="fixed inset-0 flex items-center justify-center bg-surface-base">
         <span className="text-sm text-content-secondary">Ładowanie...</span>
       </div>
     );

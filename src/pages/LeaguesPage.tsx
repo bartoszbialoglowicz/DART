@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useLeagues, useCreateLeague } from '../hooks/useLeagues';
-import { AuthModal } from '../components/auth/AuthModal';
 import { CreateLeagueModal } from '../components/league/CreateLeagueModal';
 import type { LeaguePayload, LeagueListItem } from '../types/league';
-import { LEAGUE_STATUS_LABEL, LEAGUE_STATUS_COLOR } from '../utils/colors';
 import { fmtDate } from '../utils/formatting';
+import { Button } from '../components/ui/Button';
+import { Tag } from '../components/ui/Tag';
+import { LeagueStatusBadge } from '../components/league/LeagueStatusBadge';
 
 export function LeaguesPage() {
   const { username }    = useAuth();
@@ -16,8 +17,7 @@ export function LeaguesPage() {
   const createLeague = useCreateLeague();
 
   function handleCreateClick() {
-    if (username) setModal('create');
-    else          setModal('auth');
+    setModal('create');
   }
 
   function handleConfirm(payload: LeaguePayload) {
@@ -42,14 +42,8 @@ export function LeaguesPage() {
 
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-brand-white">Ligi</h1>
-        <button
-          type="button"
-          onClick={handleCreateClick}
-          className="rounded-lg bg-brand-purple px-4 py-2 text-sm font-semibold text-brand-white hover:bg-brand-purple/80 transition-colors"
-        >
-          + Utwórz ligę
-        </button>
+        <h1 className="text-xl font-bold text-content-primary">Ligi</h1>
+        {username && <Button variant="primary" onClick={handleCreateClick}>+ Utwórz ligę</Button>}
       </div>
 
       {leagues.length === 0 ? (
@@ -69,9 +63,6 @@ export function LeaguesPage() {
           loading={createLeague.isPending}
         />
       )}
-      {modal === 'auth' && (
-        <AuthModal onClose={() => setModal(null)} />
-      )}
     </div>
   );
 }
@@ -84,18 +75,16 @@ function LeagueCard({ league }: { league: LeagueListItem }) {
   return (
     <Link
       to={`/ligi/${league.id}`}
-      className="group flex flex-col gap-3 rounded-xl border border-border-subtle bg-white/3 p-5 transition-colors hover:border-brand-purple/40 hover:bg-white/5"
+      className="group flex flex-col gap-3 rounded-xl border border-border-subtle bg-surface-overlay p-5 transition-colors hover:bg-surface-muted"
     >
       <div className="flex items-start justify-between gap-3">
-        <h2 className="text-base font-bold text-brand-white leading-snug group-hover:text-brand-purple transition-colors">
+        <h2 className="text-base font-bold leading-snug text-content-primary transition-colors group-hover:text-content-accent">
           {league.name}
         </h2>
-        <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${LEAGUE_STATUS_COLOR[league.status]}`}>
-          {LEAGUE_STATUS_LABEL[league.status]}
-        </span>
+        <LeagueStatusBadge status={league.status} />
       </div>
 
-      <div className="flex flex-wrap gap-2 text-[11px] text-content-secondary">
+      <div className="flex flex-wrap gap-2">
         <Tag>{league.member_count} graczy</Tag>
         <Tag>{league.matches_per_pair}× każdy z każdym</Tag>
         <Tag>{formatLabel}</Tag>
@@ -110,27 +99,16 @@ function LeagueCard({ league }: { league: LeagueListItem }) {
   );
 }
 
-function Tag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-full border border-border-subtle px-2.5 py-0.5">{children}</span>
-  );
-}
-
 function EmptyState({ onCreateClick, isLoggedIn }: { onCreateClick: () => void; isLoggedIn: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
-      <div className="text-4xl opacity-20 select-none">🏆</div>
+      <div className="select-none text-4xl opacity-20">🏆</div>
       <p className="text-sm text-content-secondary">
         {isLoggedIn ? 'Nie masz jeszcze żadnej ligi.' : 'Zaloguj się, żeby tworzyć i przeglądać ligi.'}
       </p>
-      <button
-        type="button"
-        onClick={onCreateClick}
-        className="rounded-lg bg-brand-purple px-5 py-2.5 text-sm font-semibold text-brand-white hover:bg-brand-purple/80 transition-colors"
-      >
-        {isLoggedIn ? 'Utwórz pierwszą ligę' : 'Zaloguj się'}
-      </button>
+      {isLoggedIn && (
+        <Button variant="primary" size="lg" onClick={onCreateClick}>Utwórz pierwszą ligę</Button>
+      )}
     </div>
   );
 }
-
