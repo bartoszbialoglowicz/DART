@@ -10,6 +10,7 @@ type Props = {
   match:          BracketMatch;
   matchFormat:    MatchFormat;
   isOwner:        boolean;
+  avgByName?:     Map<string, number>;
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, topScore: number, bottomScore: number) => void;
   onClose:        () => void;
@@ -18,7 +19,7 @@ type Props = {
 
 type View = 'menu' | 'enter';
 
-export function MatchActionMenu({ match, matchFormat, isOwner, onSimulate, onEnterResult, onClose, hideLive = false }: Props) {
+export function MatchActionMenu({ match, matchFormat, isOwner, avgByName, onSimulate, onEnterResult, onClose, hideLive = false }: Props) {
   const { top, bottom } = match;
   const { id }          = useParams<{ id: string }>();
   const navigate        = useNavigate();
@@ -26,8 +27,11 @@ export function MatchActionMenu({ match, matchFormat, isOwner, onSimulate, onEnt
   const [topScore,    setTopScore]    = useState(0);
   const [bottomScore, setBottomScore] = useState(0);
 
-  const hasPlayers = top.playerId !== null && bottom.playerId !== null;
-  const bothCpu    = top.isCpu && bottom.isCpu;
+  const hasPlayers     = top.playerId !== null && bottom.playerId !== null;
+  const bothCpu        = top.isCpu && bottom.isCpu;
+  // A "Symuluj na żywo" run keeps this lock set for the whole match — block the
+  // instant/manual result options so a second device can't race a duplicate result.
+  const isBotSimulating = bothCpu && !!match.currentLeg;
 
   const toWin = matchFormat.sets === 1
     ? Math.ceil(matchFormat.legs / 2)
@@ -54,29 +58,37 @@ export function MatchActionMenu({ match, matchFormat, isOwner, onSimulate, onEnt
           Mecz
         </p>
         <div className="mt-2 flex flex-col gap-1">
-          <PlayerRow slot={top} />
+          <PlayerRow slot={top} avgByName={avgByName} />
           <span className="self-center text-xs text-content-secondary">vs</span>
-          <PlayerRow slot={bottom} />
+          <PlayerRow slot={bottom} avgByName={avgByName} />
         </div>
       </div>
 
       {/* Content */}
       {view === 'menu' ? (
         <div className="flex flex-col">
-          {isOwner && hasPlayers && bothCpu && (
+          {isOwner && hasPlayers && bothCpu && !isBotSimulating && (
             <MenuButton onClick={handleSimulate} icon="⚡" label="Symuluj" />
           )}
-          {isOwner && hasPlayers && (
+          {isOwner && hasPlayers && !isBotSimulating && (
             <MenuButton
               onClick={() => { setTopScore(0); setBottomScore(0); setView('enter'); }}
               icon="✏️"
               label="Wpisz wynik"
             />
           )}
-          {isOwner && (
-            <MenuButton onClick={() => {}} icon="👁" label="Podgląd" disabled />
+          {isBotSimulating && (
+            <p className="px-3 py-2 text-xs text-content-faint">
+              Symulacja na żywo w toku — poczekaj na zakończenie meczu.
+            </p>
           )}
-          {!hideLive && <MenuButton onClick={() => navigate(`/turnieje/${id}/live/${match.id}`)} icon="📡" label="Na żywo" />}
+          {!hideLive && (
+            <MenuButton
+              onClick={() => navigate(`/turnieje/${id}/live/${match.id}`)}
+              icon="📡"
+              label={bothCpu ? 'Symuluj na żywo' : 'Na żywo'}
+            />
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -93,14 +105,15 @@ export function MatchActionMenu({ match, matchFormat, isOwner, onSimulate, onEnt
   );
 }
 
-function PlayerRow({ slot }: { slot: MatchSlot }) {
+function PlayerRow({ slot, avgByName }: { slot: MatchSlot; avgByName?: Map<string, number> }) {
+  const tournamentAvg = slot.playerName ? avgByName?.get(slot.playerName) : undefined;
   return (
     <div className="flex items-center justify-between">
       <span className="text-sm font-medium text-content-primary">
         {slot.playerName ?? <span className="text-content-faint">TBD</span>}
       </span>
-      {slot.playerAvg !== null && (
-        <span className="text-xs text-content-secondary">{slot.playerAvg}</span>
+      {tournamentAvg !== undefined && (
+        <span className="text-xs text-content-secondary">{tournamentAvg.toFixed(1)}</span>
       )}
     </div>
   );

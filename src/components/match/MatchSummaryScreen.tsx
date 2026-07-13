@@ -14,7 +14,6 @@ type Props = {
   setsWon:       [number, number];
   isMultiSet:    boolean;
   onClose:       () => void;
-  onSave?:       () => void;
 };
 
 const BUCKETS = [
@@ -36,7 +35,7 @@ function getVisits(legs: LegRecord[], player: 0 | 1): number[] {
 
 export function MatchSummaryScreen({
   matchId, playerTop, playerBottom, completedLegs,
-  legsWon, setsWon, isMultiSet, onClose, onSave,
+  legsWon, setsWon, isMultiSet, onClose,
 }: Props) {
   const topName    = playerTop.playerName    ?? 'Gracz 1';
   const bottomName = playerBottom.playerName ?? 'Gracz 2';
@@ -153,10 +152,7 @@ export function MatchSummaryScreen({
 
       {/* Actions */}
       <div className="mt-auto flex shrink-0 gap-3 px-4 pb-8 pt-4">
-        <Button variant="secondary" size="lg" fullWidth onClick={onClose}>Zamknij</Button>
-        {onSave && (
-          <Button variant="primary" size="lg" fullWidth onClick={onSave}>Zapisz wynik</Button>
-        )}
+        <Button variant="primary" size="lg" fullWidth onClick={onClose}>Zamknij</Button>
       </div>
     </div>
   );

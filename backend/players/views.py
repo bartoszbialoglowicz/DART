@@ -1,12 +1,16 @@
 from django.db.models import Avg, Count, Max, Sum
 from django.db.models import Q
+from django.utils import timezone
 from rest_framework import filters, permissions, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Player, TrainingSession
-from .serializers import PlayerSerializer, TrainingSessionSerializer
+from .models import Player, TrainingSession, HighscoreSession, SectorPracticeSession, PendingMatchResult
+from .serializers import (
+    PlayerSerializer, TrainingSessionSerializer, HighscoreSessionSerializer,
+    SectorPracticeSessionSerializer, PendingMatchResultSerializer,
+)
 
 
 class PlayerViewSet(viewsets.ModelViewSet):
@@ -85,6 +89,71 @@ class PlayerViewSet(viewsets.ModelViewSet):
         })
 
 
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='my-events',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def my_events(self, request):
+        player = getattr(request.user, 'player_profile', None)
+        if not player:
+            return Response([])
+
+        today = timezone.now().date()
+        events = []
+
+        # ── Mecze ligowe ──────────────────────────────────────────────────────
+        from leagues.models import LeagueMatch
+        matches = (
+            LeagueMatch.objects
+            .filter(
+                Q(home__player=player) | Q(away__player=player),
+                scheduled_at__isnull=False,
+                scheduled_at__date__gte=today,
+                status='pending',
+            )
+            .select_related('home', 'away', 'home__league')
+            .order_by('scheduled_at')[:30]
+        )
+        for m in matches:
+            is_home = m.home.player_id == player.pk
+            opponent = m.away.display_name if is_home else m.home.display_name
+            events.append({
+                'type':      'league_match',
+                'date':      m.scheduled_at.date().isoformat(),
+                'title':     f'vs. {opponent}',
+                'subtitle':  m.home.league.name,
+                'league_id': m.home.league_id,
+                'matchday':  m.matchday,
+            })
+
+        # ── Turnieje ──────────────────────────────────────────────────────────
+        from tournaments.models import Tournament
+        tournaments = (
+            Tournament.objects
+            .filter(
+                participants__player=player,
+                start_date__isnull=False,
+                start_date__date__gte=today,
+            )
+            .distinct()
+            .order_by('start_date')[:30]
+        )
+        for t in tournaments:
+            events.append({
+                'type':          'tournament',
+                'date':          t.start_date.date().isoformat(),
+                'title':         t.name,
+                'subtitle':      'Turniej',
+                'tournament_id': t.id,
+            })
+
+        events.sort(key=lambda e: e['date'])
+        return Response(events[:20])
+
+
 class TrainingSessionViewSet(viewsets.ModelViewSet):
     serializer_class   = TrainingSessionSerializer
     authentication_classes = [TokenAuthentication]
@@ -98,3 +167,78 @@ class TrainingSessionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(player=self.request.user.player_profile)
+
+
+class HighscoreSessionViewSet(viewsets.ModelViewSet):
+    serializer_class   = HighscoreSessionSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names  = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        if not hasattr(self.request.user, 'player_profile'):
+            return HighscoreSession.objects.none()
+        return HighscoreSession.objects.filter(player=self.request.user.player_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(player=self.request.user.player_profile)
+
+
+class SectorPracticeSessionViewSet(viewsets.ModelViewSet):
+    serializer_class   = SectorPracticeSessionSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    http_method_names  = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        if not hasattr(self.request.user, 'player_profile'):
+            return SectorPracticeSession.objects.none()
+        return SectorPracticeSession.objects.filter(player=self.request.user.player_profile)
+
+    def perform_create(self, serializer):
+        serializer.save(player=self.request.user.player_profile)
+
+
+class PendingMatchResultViewSet(viewsets.GenericViewSet,
+                                viewsets.mixins.ListModelMixin,
+                                viewsets.mixins.CreateModelMixin,
+                                viewsets.mixins.DestroyModelMixin):
+    serializer_class       = PendingMatchResultSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes     = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        player = getattr(self.request.user, 'player_profile', None)
+        if not player:
+            return PendingMatchResult.objects.none()
+        return PendingMatchResult.objects.filter(for_player=player)
+
+    def perform_create(self, serializer):
+        try:
+            for_player = Player.objects.get(pk=self.request.data.get('for_player_id'))
+        except Player.DoesNotExist:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'for_player_id': 'Gracz nie istnieje.'})
+        serializer.save(for_player=for_player)
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        pending = self.get_object()
+        player  = getattr(request.user, 'player_profile', None)
+        if not player or pending.for_player != player:
+            from rest_framework.response import Response
+            from rest_framework import status as http_status
+            return Response({'detail': 'Brak uprawnień.'}, status=http_status.HTTP_403_FORBIDDEN)
+
+        legs_total = pending.legs_won + pending.legs_lost
+        TrainingSession.objects.create(
+            player          = player,
+            played_at       = pending.played_at,
+            average         = pending.average,
+            legs            = legs_total,
+            double_attempts = pending.double_attempts,
+            double_hits     = pending.double_hits,
+        )
+        pending.delete()
+        from rest_framework.response import Response
+        return Response(status=204)

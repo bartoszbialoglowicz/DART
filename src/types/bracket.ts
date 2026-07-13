@@ -1,5 +1,10 @@
 import type { MatchFormat } from './tournament';
 
+export type PhaseConfig = {
+  date?: string;
+  matchFormat?: MatchFormat;
+};
+
 export type MatchSlot = {
   playerId:   number | null;
   playerName: string | null;
@@ -45,33 +50,39 @@ export type BracketMatch = {
 };
 
 export type BracketRound = {
-  id: string;
-  label: string;
-  matches: BracketMatch[];
+  id:           string;
+  label:        string;
+  date?:        string;
+  matchFormat?: MatchFormat;
+  matches:      BracketMatch[];
 };
 
 export type KnockoutBracketData = {
-  format: 'knockout';
-  name: string;
-  playerCount: number;
-  matchFormat: MatchFormat;
-  rounds: BracketRound[];
+  format:        'knockout';
+  name:          string;
+  playerCount:   number;
+  matchFormat:   MatchFormat;
+  phaseConfigs?: Record<string, PhaseConfig>;
+  rounds:        BracketRound[];
 };
 
 export type Group = {
-  id: string;
-  label: string;
-  slots: MatchSlot[];
+  id:     string;
+  label:  string;
+  slots:  MatchSlot[];
   matches: BracketMatch[];
+  board?: number;  // 1-based board number, present only when tournament has a venue
 };
 
 export type GroupsBracketData = {
-  format: 'groups';
-  name: string;
-  playerCount: number;
-  matchFormat: MatchFormat;
-  groups: Group[];
-  playoff?: { rounds: BracketRound[] };
+  format:        'groups';
+  name:          string;
+  playerCount:   number;
+  matchFormat:   MatchFormat;
+  phaseConfigs?: Record<string, PhaseConfig>;
+  groups:        Group[];
+  playoff?:      { rounds: BracketRound[] };
+  board_count?:  number;  // venue board count stored for reference
 };
 
 export type BracketData = KnockoutBracketData | GroupsBracketData;

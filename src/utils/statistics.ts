@@ -1,4 +1,5 @@
 import type { LegRecord, LegRound } from '../types/bracket';
+import type { StatisticRecord } from '../api/statistics';
 
 export type PlayerMatchStats = {
   player_id?:       number | null;
@@ -13,26 +14,74 @@ export type PlayerMatchStats = {
   darts_per_leg:    number;
 };
 
-function playerScores(rounds: LegRound[], idx: 0 | 1): number[] {
-  const key = idx === 0 ? 'p0' : 'p1';
-  return rounds.filter(r => r[key] !== undefined).map(r => r[key]!.score);
+export type PlayerRow = {
+  player_name:    string;
+  match_average:  number;
+  count_180:      number;
+  high_checkouts: number;
+  short_legs:     number;
+  matches:        number;
+};
+
+/**
+ * Aggregates per-match statistic rows into one row per player, weighting the
+ * average by matches played so far — this is the tournament-wide average
+ * shown in the "Statystyki" tab, and the same figure the bracket cards should
+ * show (rather than a player's static, tournament-agnostic profile average).
+ */
+export function aggregatePlayerStats(records: StatisticRecord[]): PlayerRow[] {
+  const map = new Map<string, PlayerRow>();
+  for (const r of records) {
+    const existing = map.get(r.player_name);
+    if (existing) {
+      existing.match_average  = (existing.match_average * existing.matches + r.match_average) / (existing.matches + 1);
+      existing.count_180      += r.count_180;
+      existing.high_checkouts += r.high_checkouts;
+      existing.short_legs     += r.short_legs;
+      existing.matches        += 1;
+    } else {
+      map.set(r.player_name, { ...r, matches: 1 });
+    }
+  }
+  return [...map.values()].sort((a, b) => b.match_average - a.match_average);
 }
 
-function avg(scores: number[]): number {
-  if (scores.length === 0) return 0;
-  return scores.reduce((a, b) => a + b, 0) / scores.length;
+type Visit = { score: number; darts: number };
+
+/**
+ * A visit is always 3 darts, unless it's the throw that finished the leg
+ * (remaining === 0) — that one took however many darts the double-attempt
+ * modal recorded (dartsToClose), defaulting to 3 when that wasn't tracked.
+ */
+function playerVisits(rounds: LegRound[], idx: 0 | 1): Visit[] {
+  const key = idx === 0 ? 'p0' : 'p1';
+  return rounds
+    .filter(r => r[key] !== undefined)
+    .map(r => {
+      const entry = r[key]!;
+      const darts = entry.remaining === 0 ? (entry.doubleAttempt?.dartsToClose ?? 3) : 3;
+      return { score: entry.score, darts };
+    });
+}
+
+/** Standard 3-dart average: total points scored ÷ total darts thrown × 3. */
+function avg(visits: Visit[]): number {
+  const totalDarts = visits.reduce((s, v) => s + v.darts, 0);
+  if (totalDarts === 0) return 0;
+  const totalScore = visits.reduce((s, v) => s + v.score, 0);
+  return (totalScore / totalDarts) * 3;
 }
 
 /** Average for the current (ongoing) leg — per visit, for one player. */
 export function currentLegAvg(currentRounds: LegRound[], playerIdx: 0 | 1): number {
-  return avg(playerScores(currentRounds, playerIdx));
+  return avg(playerVisits(currentRounds, playerIdx));
 }
 
 /** Average across all completed legs + current leg rounds. */
 export function matchAvg(completedLegs: LegRecord[], currentRounds: LegRound[], playerIdx: 0 | 1): number {
-  const all: number[] = [];
-  for (const leg of completedLegs) all.push(...playerScores(leg.rounds, playerIdx));
-  all.push(...playerScores(currentRounds, playerIdx));
+  const all: Visit[] = [];
+  for (const leg of completedLegs) all.push(...playerVisits(leg.rounds, playerIdx));
+  all.push(...playerVisits(currentRounds, playerIdx));
   return avg(all);
 }
 
@@ -46,7 +95,7 @@ export function computeMatchStats(
   return [0, 1].map((i) => {
     const idx        = i as 0 | 1;
     const winnerKey  = idx === 0 ? 'top' : 'bottom';
-    const allScores: number[] = [];
+    const allVisits: Visit[] = [];
     let count180      = 0;
     let highCheckouts = 0;
     let shortLegs     = 0;
@@ -56,8 +105,9 @@ export function computeMatchStats(
     let legsWon        = 0;
 
     for (const leg of completedLegs) {
-      const scores = playerScores(leg.rounds, idx);
-      allScores.push(...scores);
+      const visits = playerVisits(leg.rounds, idx);
+      const scores = visits.map(v => v.score);
+      allVisits.push(...visits);
       count180 += scores.filter(s => s === 180).length;
 
       for (const round of leg.rounds) {
@@ -91,7 +141,7 @@ export function computeMatchStats(
       player_id:       playerIds?.[idx] ?? null,
       player_name:     playerNames[idx],
       match_id:        matchId,
-      match_average:   avg(allScores),
+      match_average:   avg(allVisits),
       count_180:       count180,
       high_checkouts:  highCheckouts,
       short_legs:      shortLegs,

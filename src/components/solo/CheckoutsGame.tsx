@@ -8,23 +8,65 @@ import { cn } from '../ui/cn';
 
 const MIN_VALUE = 40;
 
+export type CheckoutsMode = 'easy' | 'hard';
+
 type DartsUsed = 1 | 2 | 3;
 type Attempt   = { value: number; darts: DartsUsed | null };
 
+// ── Session persistence ───────────────────────────────────────────────────────
+// Survives a page refresh mid-game; cleared once the player leaves a finished game.
+
+const SESSION_KEY = 'dart:checkouts-session';
+
+type CheckoutsSession = {
+  mode:         CheckoutsMode;
+  currentValue: number;
+  history:      Attempt[];
+  streak:       number;
+  bestStreak:   number;
+  successCount: number;
+  phase:        'playing' | 'game-over';
+};
+
+export function loadCheckoutsSession(): CheckoutsSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? (JSON.parse(raw) as CheckoutsSession) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(s: CheckoutsSession): void {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch {}
+}
+
+function clearSession(): void {
+  localStorage.removeItem(SESSION_KEY);
+}
+
 type Props = {
-  mode:   'easy' | 'hard';
+  mode:   CheckoutsMode;
   onBack: () => void;
 };
 
 export function CheckoutsGame({ mode, onBack }: Props) {
-  const [currentValue, setCurrentValue] = useState(MIN_VALUE);
-  const [history,      setHistory]      = useState<Attempt[]>([]);
-  const [streak,       setStreak]       = useState(0);
-  const [bestStreak,   setBestStreak]   = useState(0);
-  const [successCount, setSuccessCount] = useState(0);
-  const [phase,        setPhase]        = useState<'playing' | 'game-over'>('playing');
+  const [initial] = useState<CheckoutsSession | null>(() => {
+    const saved = loadCheckoutsSession();
+    return saved && saved.mode === mode ? saved : null;
+  });
+  const [currentValue, setCurrentValue] = useState(initial?.currentValue ?? MIN_VALUE);
+  const [history,      setHistory]      = useState<Attempt[]>(initial?.history ?? []);
+  const [streak,       setStreak]       = useState(initial?.streak ?? 0);
+  const [bestStreak,   setBestStreak]   = useState(initial?.bestStreak ?? 0);
+  const [successCount, setSuccessCount] = useState(initial?.successCount ?? 0);
+  const [phase,        setPhase]        = useState<'playing' | 'game-over'>(initial?.phase ?? 'playing');
   const [delta,        setDelta]        = useState<number | null>(null);
   const deltaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    saveSession({ mode, currentValue, history, streak, bestStreak, successCount, phase });
+  }, [mode, currentValue, history, streak, bestStreak, successCount, phase]);
 
   function showDelta(val: number) {
     if (deltaTimerRef.current) clearTimeout(deltaTimerRef.current);
@@ -67,6 +109,13 @@ export function CheckoutsGame({ mode, onBack }: Props) {
     setDelta(null);
   }
 
+  // Header close / overlay "Wróć": preserve an in-progress game for resume, but
+  // clear a finished one so the next visit starts fresh instead of re-showing it.
+  function handleClose() {
+    if (phase === 'game-over') clearSession();
+    onBack();
+  }
+
   const hint          = getCheckoutHint(currentValue);
   const totalAttempts = history.length;
   const recentHistory = [...history].reverse().slice(0, 10);
@@ -75,7 +124,7 @@ export function CheckoutsGame({ mode, onBack }: Props) {
   return (
     <GameShell
       title="Checkouts"
-      onClose={onBack}
+      onClose={handleClose}
       badge={<Badge variant={mode === 'hard' ? 'down' : 'accent'} className="uppercase">{mode}</Badge>}
     >
       {/* ── Value display ────────────────────────────────────── */}
@@ -99,7 +148,7 @@ export function CheckoutsGame({ mode, onBack }: Props) {
         </div>
 
         {hint && (
-          <span className="text-base font-semibold tracking-widest text-content-accent">
+          <span className="text-3xl font-bold tracking-wide text-content-accent">
             {hint}
           </span>
         )}
@@ -150,12 +199,12 @@ export function CheckoutsGame({ mode, onBack }: Props) {
       </div>
 
       {/* ── Keys ─────────────────────────────────────────────── */}
-      <div className="flex shrink-0 flex-col gap-2 p-4">
+      <div className="flex shrink-0 flex-col gap-2 p-4 pb-8">
         <div className="grid grid-cols-3 gap-2">
           {([1, 2, 3] as DartsUsed[]).map(n => (
             <GameKey
               key={n}
-              tone="accent"
+              tone="neutral"
               label={n}
               sublabel={dartsLabel(n)}
               onPointerDown={(e) => { e.preventDefault(); if (phase === 'playing') submit(n); }}
@@ -163,7 +212,8 @@ export function CheckoutsGame({ mode, onBack }: Props) {
           ))}
         </div>
         <GameKey
-          tone="neutral"
+          tone="danger"
+          className="py-6"
           onPointerDown={(e) => { e.preventDefault(); if (phase === 'playing') submit(null); }}
         >
           <span className="text-xl font-semibold">Brak trafienia</span>
@@ -204,7 +254,7 @@ export function CheckoutsGame({ mode, onBack }: Props) {
 
           <div className="flex w-full max-w-xs gap-3">
             <Button variant="primary" fullWidth onClick={restart}>Jeszcze raz</Button>
-            <Button variant="secondary" fullWidth onClick={onBack}>Wróć</Button>
+            <Button variant="secondary" fullWidth onClick={handleClose}>Wróć</Button>
           </div>
         </div>
       )}

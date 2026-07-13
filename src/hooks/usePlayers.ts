@@ -54,3 +54,10 @@ export function useMyStats() {
     queryFn:  () => playersApi.myStats(),
   });
 }
+
+export function useMyEvents() {
+  return useQuery({
+    queryKey: ['players', 'my-events'],
+    queryFn:  () => playersApi.myEvents(),
+  });
+}

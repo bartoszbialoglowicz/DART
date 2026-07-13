@@ -1,5 +1,5 @@
 import { client } from './client';
-import type { Player, PlayerPayload, PlayerStats } from '../types/player';
+import type { Player, PlayerPayload, PlayerStats, PlayerEvent } from '../types/player';
 
 type PaginatedResponse<T> = {
   count: number;
@@ -65,5 +65,9 @@ export const playersApi = {
 
   myStats() {
     return client.get<PlayerStats>('/players/my-stats/');
+  },
+
+  myEvents() {
+    return client.get<PlayerEvent[]>('/players/my-events/');
   },
 };

@@ -7,6 +7,9 @@ type Props = {
   badge?:      ReactNode;
   onClose:     () => void;
   closeLabel?: string;
+  /** Optional secondary header action, rendered to the left of the close button
+   *  (e.g. a standalone "Zakończ" that ends the session instead of just leaving). */
+  extraAction?: ReactNode;
   /** Body + key area + any overlays. */
   children:    ReactNode;
 };
@@ -17,7 +20,7 @@ type Props = {
  * `fixed inset-0 z-50 …`. Game-specific overlays render as children and
  * position against this (it is the positioned ancestor).
  */
-export function GameShell({ title, badge, onClose, closeLabel = 'Zamknij', children }: Props) {
+export function GameShell({ title, badge, onClose, closeLabel = 'Zamknij', extraAction, children }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface-base select-none">
       <div className="flex shrink-0 items-center justify-between border-b border-border-subtle px-4 py-3">
@@ -25,7 +28,10 @@ export function GameShell({ title, badge, onClose, closeLabel = 'Zamknij', child
           <span className="text-xs font-medium uppercase tracking-widest text-content-secondary">{title}</span>
           {badge}
         </div>
-        <Button variant="secondary" size="sm" onClick={onClose}>{closeLabel}</Button>
+        <div className="flex shrink-0 items-center gap-2">
+          {extraAction}
+          <Button variant="secondary" size="sm" onClick={onClose}>{closeLabel}</Button>
+        </div>
       </div>
       {children}
     </div>

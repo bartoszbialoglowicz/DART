@@ -8,7 +8,7 @@ import { cpuVisitDoubleAttempt, getCheckoutHint, simulateCpuVisit } from '../../
 
 export type Score      = { score: number; remaining: number; doubleAttempt?: DoubleAttempt };
 export type Round      = { p0?: Score; p1?: Score };
-export type Phase      = 'playing' | 'leg-won' | 'set-won' | 'match-won';
+export type Phase      = 'playing' | 'leg-won' | 'set-won' | 'match-won' | 'bull-shoot';
 export type EditTarget = { roundIdx: number; player: 0 | 1 } | null;
 export type DoubleModalPending = { score: number; remainingBefore: number; isClosing: boolean };
 
@@ -28,10 +28,15 @@ type Props = {
 
 export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult, onLegComplete, onScoreEntered }: Props) {
   const { top, bottom } = match;
+  const bothCpu = top.isCpu && bottom.isCpu;
 
   const legsToWin  = Math.ceil(matchFormat.legs / 2);
   const setsToWin  = Math.ceil(matchFormat.sets / 2);
   const isMultiSet = matchFormat.sets > 1;
+  // null = unlimited; divide by 3 to get max visits per player
+  const maxVisitsPerPlayer = matchFormat.max_darts_per_leg != null
+    ? Math.floor(matchFormat.max_darts_per_leg / 3)
+    : null;
 
   const savedLegs    = match.legs       ?? [];
   const savedCurrent = match.currentLeg ?? { rounds: [], activePlayer: 0 as const };
@@ -101,54 +106,78 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
   }, [editTarget, input]);
 
   const applyScore = useCallback((score: number, doubleAttempt?: DoubleAttempt) => {
-    const remaining = currentRemaining - score;
+    // Read from refs to guarantee fresh state even when called from a stale closure
+    // (e.g. the CPU timer fires 900 ms after the last render).
+    const curRounds       = roundsRef.current;
+    const curActivePlayer = activePlayerRef.current;
+
+    const p0Rem     = START - curRounds.reduce((s, r) => s + (r.p0?.score ?? 0), 0);
+    const p1Rem     = START - curRounds.reduce((s, r) => s + (r.p1?.score ?? 0), 0);
+    const remaining = (curActivePlayer === 0 ? p0Rem : p1Rem) - score;
     const newScore: Score = { score, remaining, ...(doubleAttempt ? { doubleAttempt } : {}) };
 
     let newRounds: Round[];
-    if (activePlayer === 0) {
-      const last = rounds[rounds.length - 1];
-      // When opponent (p1) started the leg and already has a score in the last row,
-      // fill p0 into that same row instead of creating a new one.
+    if (curActivePlayer === 0) {
+      const last = curRounds[curRounds.length - 1];
+      // p1 started this leg and already has a score in the last row — fill p0 into it.
       if (last && last.p1 !== undefined && last.p0 === undefined) {
-        newRounds = [...rounds.slice(0, -1), { ...last, p0: newScore }];
+        newRounds = [...curRounds.slice(0, -1), { ...last, p0: newScore }];
       } else {
-        newRounds = [...rounds, { p0: newScore }];
+        newRounds = [...curRounds, { p0: newScore }];
       }
     } else {
-      newRounds = [...rounds.slice(0, -1), { ...rounds[rounds.length - 1], p1: newScore }];
+      const last = curRounds[curRounds.length - 1];
+      // p0 started this leg and already has a score in the last row — fill p1 into it.
+      if (last && last.p0 !== undefined && last.p1 === undefined) {
+        newRounds = [...curRounds.slice(0, -1), { ...last, p1: newScore }];
+      } else {
+        newRounds = [...curRounds, { p1: newScore }];
+      }
     }
 
     setRounds(newRounds);
+    roundsRef.current = newRounds; // keep ref in sync immediately (before next render)
 
     if (remaining === 0) {
       const legRecord: LegRecord = {
         rounds: newRounds,
-        winner: activePlayer === 0 ? 'top' : 'bottom',
+        winner: curActivePlayer === 0 ? 'top' : 'bottom',
       };
       const newCompletedLegs = [...completedLegs, legRecord];
       setCompletedLegs(newCompletedLegs);
-      onLegComplete?.(newCompletedLegs, newRounds, activePlayer);
+      onLegComplete?.(newCompletedLegs, newRounds, curActivePlayer);
 
       const newLegsWon: [number, number] = [legsWon[0], legsWon[1]];
-      newLegsWon[activePlayer]++;
-      setLegWinner(activePlayer);
+      newLegsWon[curActivePlayer]++;
+      setLegWinner(curActivePlayer);
 
-      if (newLegsWon[activePlayer] >= legsToWin) {
+      if (newLegsWon[curActivePlayer] >= legsToWin) {
         const newSetsWon: [number, number] = [setsWon[0], setsWon[1]];
-        newSetsWon[activePlayer]++;
+        newSetsWon[curActivePlayer]++;
         setSetsWon(newSetsWon);
         setLegsWon(newLegsWon);
-        setPhase(newSetsWon[activePlayer] >= setsToWin ? 'match-won' : 'set-won');
+        setPhase(newSetsWon[curActivePlayer] >= setsToWin ? 'match-won' : 'set-won');
       } else {
         setLegsWon(newLegsWon);
         setPhase('leg-won');
       }
     } else {
-      const nextPlayer: 0 | 1 = activePlayer === 0 ? 1 : 0;
+      // Check if both players have exhausted their max darts for this leg
+      if (maxVisitsPerPlayer !== null) {
+        const p0Visits = newRounds.filter(r => r.p0 !== undefined).length;
+        const p1Visits = newRounds.filter(r => r.p1 !== undefined).length;
+        if (p0Visits >= maxVisitsPerPlayer && p1Visits >= maxVisitsPerPlayer) {
+          setPhase('bull-shoot');
+          onScoreEntered?.(newRounds, curActivePlayer === 0 ? 1 : 0);
+          return;
+        }
+      }
+      const nextPlayer: 0 | 1 = curActivePlayer === 0 ? 1 : 0;
       setActivePlayer(nextPlayer);
+      activePlayerRef.current = nextPlayer; // keep ref in sync immediately
       onScoreEntered?.(newRounds, nextPlayer);
     }
-  }, [currentRemaining, activePlayer, rounds, completedLegs, legsWon, setsWon, legsToWin, setsToWin, onLegComplete, onScoreEntered]);
+  }, [completedLegs, legsWon, setsWon, legsToWin, setsToWin, maxVisitsPerPlayer, onLegComplete, onScoreEntered]);
 
   const applyScoreEdit = useCallback((roundIdx: number, player: 0 | 1, newScore: number) => {
     const newRounds: Round[] = rounds.map((r, i) => {
@@ -186,19 +215,42 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
     }
     const score = Number(input);
     setInput('');
-    // Show double-attempt modal only when the player was already in checkout range:
-    // remaining === 50 (Bull finish) or remaining <= 40 (D1–D20), AND the value
-    // has a valid checkout route (even numbers and 50; odd numbers below 40 cannot
-    // be closed on a double directly and are excluded via getCheckoutHint).
+    const isClosing = score === currentRemaining;
+    // Show double-attempt modal when:
+    // • the leg is closed (always — any closing throw must end on a double), OR
+    // • remaining ≤ 50 AND (a checkout route exists OR remaining ≤ 40, i.e. D1-D20 zone)
     const inDoubleZone =
-      (currentRemaining === 50 || currentRemaining <= 40) &&
-      getCheckoutHint(currentRemaining) !== null;
+      isClosing ||
+      (currentRemaining <= 50 && (getCheckoutHint(currentRemaining) !== null || currentRemaining <= 40));
     if (inDoubleZone) {
-      setDoubleModalPending({ score, remainingBefore: currentRemaining, isClosing: score === currentRemaining });
+      setDoubleModalPending({ score, remainingBefore: currentRemaining, isClosing });
     } else {
       applyScore(score);
     }
   }, [canConfirm, isCpuTurn, input, currentRemaining, applyScore, editTarget, applyScoreEdit]);
+
+  function resolveBullShoot(winner: 0 | 1) {
+    const curRounds = roundsRef.current;
+    const legRecord: LegRecord = { rounds: curRounds, winner: winner === 0 ? 'top' : 'bottom' };
+    const newCompletedLegs = [...completedLegs, legRecord];
+    setCompletedLegs(newCompletedLegs);
+    onLegComplete?.(newCompletedLegs, curRounds, winner);
+
+    const newLegsWon: [number, number] = [legsWon[0], legsWon[1]];
+    newLegsWon[winner]++;
+    setLegWinner(winner);
+
+    if (newLegsWon[winner] >= legsToWin) {
+      const newSetsWon: [number, number] = [setsWon[0], setsWon[1]];
+      newSetsWon[winner]++;
+      setSetsWon(newSetsWon);
+      setLegsWon(newLegsWon);
+      setPhase(newSetsWon[winner] >= setsToWin ? 'match-won' : 'set-won');
+    } else {
+      setLegsWon(newLegsWon);
+      setPhase('leg-won');
+    }
+  }
 
   function setStartPlayer(player: 0 | 1) {
     setActivePlayer(player);
@@ -216,19 +268,34 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
     onScoreEntered?.([], nextStart);
   }
 
-  function finishMatch() {
+  // ── Effects ───────────────────────────────────────────────────────────────
+
+  // Auto-save exactly once when the match is won — the result must persist the
+  // instant the last leg finishes, not only if/when the user clicks a button.
+  const resultSavedRef = useRef(false);
+  useEffect(() => {
+    if (phase !== 'match-won' || !isOwner || resultSavedRef.current) return;
+    resultSavedRef.current = true;
     const topScore    = isMultiSet ? setsWon[0] : legsWon[0];
     const bottomScore = isMultiSet ? setsWon[1] : legsWon[1];
     onResult(topScore, bottomScore);
-  }
+  }, [phase, isOwner, isMultiSet, setsWon, legsWon, onResult]);
 
-  // ── Effects ───────────────────────────────────────────────────────────────
+  // Always-fresh refs — guarantee CPU timer sees the latest state regardless of render timing
+  const applyScoreRef    = useRef(applyScore);
+  const roundsRef        = useRef(rounds);
+  const activePlayerRef  = useRef(activePlayer);
+  useLayoutEffect(() => {
+    applyScoreRef.current   = applyScore;
+    roundsRef.current       = rounds;
+    activePlayerRef.current = activePlayer;
+  });
 
-  // Always-fresh ref — avoids stale closure in CPU timer without re-triggering the effect
-  const applyScoreRef = useRef(applyScore);
-  useLayoutEffect(() => { applyScoreRef.current = applyScore; });
-
-  // CPU auto-play: fires whenever it becomes the CPU's turn
+  // CPU auto-play: fires whenever it becomes the CPU's turn.
+  // Deps include activePlayer/rounds.length, not just currentRemaining — in a
+  // bot-vs-bot match isCpuTurn is always true, and every leg starts with both
+  // players at the same remaining score, so currentRemaining alone can repeat
+  // across the turn flip and React would skip re-running the effect.
   useEffect(() => {
     if (!isCpuTurn) return;
     const sigma = activeSlot.cpuSigma ?? 55;
@@ -240,7 +307,16 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
     }, 900);
     return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCpuTurn, currentRemaining]);
+  }, [isCpuTurn, activePlayer, rounds.length, currentRemaining]);
+
+  // Bot-vs-bot matches have no human to click "Następny leg/set" — advance on
+  // their behalf so "Symuluj na żywo" plays out unattended end to end.
+  useEffect(() => {
+    if (!bothCpu || (phase !== 'leg-won' && phase !== 'set-won')) return;
+    const t = setTimeout(() => startNext(), 1200);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bothCpu, phase]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -285,7 +361,7 @@ export function useMatchEngine({ match, matchFormat, isOwner, onClose, onResult,
     bottomRef,
     // actions
     pressDigit, pressClear, confirmScore, applyScore,
-    setStartPlayer, startNext, finishMatch,
+    setStartPlayer, startNext, resolveBullShoot,
     setEditTarget, setInput, setDoubleModalPending,
     openEdit,
   };

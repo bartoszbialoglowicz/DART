@@ -22,6 +22,7 @@ type Props = {
 export function LiveMatchScreen(props: Props) {
   const { match, isOwner, onClose } = props;
   const { top, bottom } = match;
+  const bothCpu = top.isCpu && bottom.isCpu;
 
   const engine = useMatchEngine(props);
   const {
@@ -34,7 +35,7 @@ export function LiveMatchScreen(props: Props) {
     p0LegAvg, p1LegAvg, p0MatchAvg, p1MatchAvg,
     bottomRef,
     pressDigit, pressClear, confirmScore, applyScore,
-    setStartPlayer, startNext, finishMatch,
+    setStartPlayer, startNext, resolveBullShoot,
     setEditTarget, setInput, setDoubleModalPending, openEdit,
   } = engine;
 
@@ -66,7 +67,7 @@ export function LiveMatchScreen(props: Props) {
   ];
 
   return (
-    <GameShell title="Na żywo" onClose={onClose}>
+    <GameShell title={bothCpu ? 'Symulacja na żywo' : 'Na żywo'} onClose={onClose}>
 
       {/* ── Top section ──────────────────────────────────── */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -213,7 +214,7 @@ export function LiveMatchScreen(props: Props) {
         )}
       </div>
 
-      {isOwner && (
+      {isOwner && !bothCpu && (
         <>
           <div className="h-px shrink-0 bg-border-subtle" />
 
@@ -287,6 +288,28 @@ export function LiveMatchScreen(props: Props) {
         </div>
       )}
 
+      {/* ── Bull shoot (max darts exceeded) ─────────────── */}
+      {phase === 'bull-shoot' && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-6 bg-surface-base px-8">
+          <div className="text-center">
+            <span className="text-xs font-medium uppercase tracking-widest text-content-secondary">
+              Limit lotek — bull shoot
+            </span>
+            <p className="mt-2 text-sm text-content-faint">
+              Nikt nie zamknął lega. Kto rzucił bliżej środka?
+            </p>
+          </div>
+          <div className="flex w-full max-w-xs flex-col gap-3">
+            <Button variant="primary" size="lg" fullWidth onClick={() => resolveBullShoot(0)}>
+              {top.playerName ?? 'Gracz 1'}
+            </Button>
+            <Button variant="secondary" size="lg" fullWidth onClick={() => resolveBullShoot(1)}>
+              {bottom.playerName ?? 'Gracz 2'}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* ── Double attempt modal ─────────────────────────── */}
       {doubleModalPending && (
         <DoubleModal
@@ -314,7 +337,6 @@ export function LiveMatchScreen(props: Props) {
           setsWon={setsWon}
           isMultiSet={isMultiSet}
           onClose={onClose}
-          onSave={isOwner ? finishMatch : undefined}
         />
       )}
     </GameShell>

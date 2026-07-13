@@ -74,6 +74,16 @@ export function avgToSigma(average: number): number {
   return (1036.2 / average) - 3.684;
 }
 
+/** Returns a human-readable skill label for a given 3-dart average. */
+export function botLevel(avg: number): string {
+  if (avg >= 90) return 'Pro';
+  if (avg >= 75) return 'Dobry amator';
+  if (avg >= 60) return 'Klub';
+  if (avg >= 45) return 'Średni';
+  if (avg >= 30) return 'Początkujący';
+  return 'Rekreacyjny';
+}
+
 export const SKILL_LEVELS = [
   { id: 'pro',      label: 'Pro',           sigma: 12  },
   { id: 'top_am',   label: 'Dobry amator',  sigma: 25  },

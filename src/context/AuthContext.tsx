@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { authApi } from '../api/auth';
+import { queryClient } from '../queryClient';
 
 interface AuthState {
   token:    string | null;
@@ -45,6 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setUsername(null);
     setPlayerIdState(null);
+    queryClient.clear();
   }
 
   useEffect(() => {
@@ -63,11 +65,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (u: string, p: string) => {
     const res = await authApi.login(u, p);
     persist(res.token, res.username, res.player_id);
+    queryClient.invalidateQueries();
   }, []);
 
   const register = useCallback(async (u: string, p: string) => {
     const res = await authApi.register(u, p);
     persist(res.token, res.username, res.player_id);
+    queryClient.invalidateQueries();
   }, []);
 
   const logout = useCallback(async () => {

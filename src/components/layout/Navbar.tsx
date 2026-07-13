@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AuthModal } from '../auth/AuthModal';
 import { Button } from '../ui/Button';
@@ -14,9 +14,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/profil',   label: 'Profil',   authOnly: true },
   { to: '/solo',     label: 'Solo'     },
   { to: '/turnieje', label: 'Turnieje' },
-  { to: '/ligi',     label: 'Ligi'     },
+  { to: '/ligi',     label: 'Cykle'    },
   { to: '/rankingi', label: 'Rankingi' },
-  { to: '/gracze',   label: 'Gracze'   },
   { to: '/hub',      label: 'Hub',      authOnly: true },
 ];
 
@@ -40,6 +39,7 @@ const mobileLinkClass = ({ isActive }: { isActive: boolean }) =>
 export function Navbar() {
   const { username, logout } = useAuth();
   const location             = useLocation();
+  const navigate             = useNavigate();
   const [authOpen,   setAuthOpen]   = useState(false);
   const [menuOpen,   setMenuOpen]   = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -63,9 +63,10 @@ export function Navbar() {
     return () => { document.body.style.overflow = ''; };
   }, [menuOpen]);
 
-  function handleLogout() {
+  async function handleLogout() {
     setMenuOpen(false);
-    logout();
+    await logout();
+    navigate('/solo', { replace: true });
   }
 
   return (
@@ -94,7 +95,7 @@ export function Navbar() {
             {username ? (
               <>
                 <span className="text-sm text-content-secondary">{username}</span>
-                <Button variant="secondary" size="sm" onClick={logout}>Wyloguj</Button>
+                <Button variant="secondary" size="sm" onClick={handleLogout}>Wyloguj</Button>
               </>
             ) : (
               <Button variant="primary" size="sm" onClick={() => setAuthOpen(true)}>

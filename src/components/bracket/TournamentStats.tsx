@@ -1,34 +1,10 @@
 import { useTournamentStatistics } from '../../hooks/useTournaments';
-import type { StatisticRecord } from '../../api/statistics';
+import { aggregatePlayerStats, type PlayerRow } from '../../utils/statistics';
 import type { BracketData } from '../../types/bracket';
 import { WinnerCard } from './WinnerCard';
 import { cn } from '../ui/cn';
 
-export type PlayerRow = {
-  player_name:    string;
-  match_average:  number;
-  count_180:      number;
-  high_checkouts: number;
-  short_legs:     number;
-  matches:        number;
-};
-
-function aggregate(records: StatisticRecord[]): PlayerRow[] {
-  const map = new Map<string, PlayerRow>();
-  for (const r of records) {
-    const existing = map.get(r.player_name);
-    if (existing) {
-      existing.match_average  = (existing.match_average * existing.matches + r.match_average) / (existing.matches + 1);
-      existing.count_180      += r.count_180;
-      existing.high_checkouts += r.high_checkouts;
-      existing.short_legs     += r.short_legs;
-      existing.matches        += 1;
-    } else {
-      map.set(r.player_name, { ...r, matches: 1 });
-    }
-  }
-  return [...map.values()].sort((a, b) => b.match_average - a.match_average);
-}
+export type { PlayerRow };
 
 export type Winner = { name: string; playerId: number | null };
 
@@ -63,7 +39,7 @@ export function TournamentStats({ tournamentId, bracket, isActive }: Props) {
     );
   }
 
-  const rows       = aggregate(data ?? []);
+  const rows       = aggregatePlayerStats(data ?? []);
   const isFinished = !isActive;
   const winner     = isFinished ? findWinner(bracket) : null;
   const winnerRow  = winner ? rows.find(r => r.player_name === winner.name) : undefined;

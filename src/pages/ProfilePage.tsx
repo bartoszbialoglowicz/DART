@@ -1,14 +1,13 @@
 import { lazy, Suspense, useState } from 'react';
+import legendIcon from '../assets/icons/5-legenda.svg';
 import { useAuth } from '../context/AuthContext';
-import { useMyStats } from '../hooks/usePlayers';
+import { useMyStats, useMyEvents } from '../hooks/usePlayers';
 import { useTrainingSessions } from '../hooks/useTraining';
-import type { PlayerStats, TrainingSession } from '../types/player';
+import type { PlayerEvent, PlayerStats, TrainingSession } from '../types/player';
 import { fmtDate, fmtDateShort } from '../utils/formatting';
 import { Card } from '../components/ui/Card';
 import { Stat } from '../components/ui/Stat';
 import { Badge } from '../components/ui/Badge';
-import { ResultChip, type Result } from '../components/ui/ResultChip';
-import { Button } from '../components/ui/Button';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
 
 const TrainingChart = lazy(() =>
@@ -17,25 +16,31 @@ const TrainingChart = lazy(() =>
 
 // ── Placeholder data ──────────────────────────────────────────────────────────
 
-const FORM: Result[] = ['W', 'W', 'L', 'W', 'W', 'L'];
+// Placeholder — ostatnie miejsca w turniejach (1 = zwycięstwo, 2 = finalista, itd.)
+const RECENT_PLACEMENTS = [1, 5, 2, 3, 1, 8];
 
-type EventType = 'mecz' | 'turniej' | 'ranking';
+function placementLabel(rank: number): string {
+  if (rank === 1)  return '1.';
+  if (rank === 2)  return '2.';
+  if (rank <= 4)   return '3-4.';
+  if (rank <= 8)   return '5-8.';
+  if (rank <= 16)  return '9-16.';
+  if (rank <= 32)  return '17-32.';
+  return '33+.';
+}
 
-const EVENTS: {
-  day: string; month: string; type: EventType; typeLabel: string;
-  title: string; venue: string; time: string; soon: string | null;
-}[] = [
-  { day: '12', month: 'CZE', type: 'mecz',    typeLabel: 'MECZ LIGOWY',       title: 'vs. Lotka Kraków',               venue: 'Hala MOSiR, Kraków', time: '19:00', soon: 'Za 3 dni' },
-  { day: '21', month: 'CZE', type: 'turniej', typeLabel: 'TURNIEJ',           title: 'Otwarte Mistrzostwa Małopolski', venue: 'Tarnów',             time: '10:00', soon: null },
-  { day: '28', month: 'CZE', type: 'mecz',    typeLabel: 'MECZ LIGOWY',       title: "vs. Bull's Eye Tarnów",          venue: 'Dart Zone, Kraków',  time: '18:30', soon: null },
-  { day: '05', month: 'LIP', type: 'ranking', typeLabel: 'TURNIEJ RANKINGOWY', title: 'PDC Amateur Series',            venue: 'Warszawa',           time: '09:00', soon: null },
-];
+function placementVariant(rank: number): 'rank' | 'up' | 'neutral' {
+  if (rank === 1) return 'rank';
+  if (rank <= 4)  return 'up';
+  return 'neutral';
+}
 
-const EVENT_BADGE: Record<EventType, 'accent' | 'neutral' | 'rank'> = {
-  mecz: 'accent',
-  turniej: 'neutral',
-  ranking: 'rank',
-};
+const MONTHS_PL = ['STY','LUT','MAR','KWI','MAJ','CZE','LIP','SIE','WRZ','PAŹ','LIS','GRU'];
+
+function parseDateParts(iso: string) {
+  const [, m, d] = iso.split('-');
+  return { day: d, month: MONTHS_PL[parseInt(m, 10) - 1] };
+}
 
 type Metric = 'average' | 'double_pct';
 type Range  = '7d' | '30d' | '365d' | 'all';
@@ -61,9 +66,10 @@ const CHART_COLOR: Record<Metric, string> = {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ProfilePage() {
-  const { username }                 = useAuth();
-  const { data, isLoading, isError } = useMyStats();
-  const { data: sessions = [], isLoading: sessionsLoading } = useTrainingSessions();
+  const { username }                                         = useAuth();
+  const { data, isLoading, isError }                         = useMyStats();
+  const { data: sessions = [], isLoading: sessionsLoading }  = useTrainingSessions();
+  const { data: events   = [] }                              = useMyEvents();
 
   if (isLoading || sessionsLoading) {
     return (
@@ -96,10 +102,7 @@ export function ProfilePage() {
             {/* Avatar + name */}
             <div className="mb-5 flex flex-col items-center text-center">
               <div className="relative mb-3">
-                <div className="flex h-20 w-20 select-none items-center justify-center rounded-full bg-accent-soft font-display text-3xl font-extrabold text-accent-text">
-                  {player.first_name[0]}{player.last_name[0]}
-                </div>
-                <span className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-surface-overlay bg-score-up" />
+                <img src={legendIcon} alt="" className="h-24 w-24 select-none" />
               </div>
               <h1 className="text-lg font-bold text-content-primary">
                 {player.first_name} {player.last_name}
@@ -114,13 +117,17 @@ export function ProfilePage() {
               <Badge variant="neutral">Kraków, PL</Badge>
             </div>
 
-            {/* Form */}
+            {/* Miejsca turniejowe */}
             <div className="mb-5">
               <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-content-secondary">
-                Forma · ostatnie {FORM.length}
+                Forma · ostatnie {RECENT_PLACEMENTS.length}
               </p>
-              <div className="flex gap-1.5">
-                {FORM.map((r, i) => <ResultChip key={i} result={r} />)}
+              <div className="flex flex-wrap gap-1.5">
+                {RECENT_PLACEMENTS.map((rank, i) => (
+                  <Badge key={i} variant={placementVariant(rank)} mono>
+                    {placementLabel(rank)}
+                  </Badge>
+                ))}
               </div>
             </div>
 
@@ -139,7 +146,7 @@ export function ProfilePage() {
           <ProgressSection sessions={sessions} />
           <TournamentStatsSection stats={stats} />
           <TrainingSummarySection sessions={sessions} />
-          <EventsSection />
+          <EventsSection events={events} />
         </div>
       </div>
     </div>
@@ -234,7 +241,7 @@ function TournamentStatsSection({ stats }: { stats: PlayerStats['stats'] }) {
                 size="md"
                 label="Średnia"
                 value={stats.match_average > 0 ? stats.match_average.toFixed(2) : '—'}
-                caption="za poprzedni turniej"
+                caption="ze wszystkich turniejów"
               />
             </Card>
             <Card variant="inset">
@@ -243,7 +250,7 @@ function TournamentStatsSection({ stats }: { stats: PlayerStats['stats'] }) {
                 label="% na doublach"
                 value={stats.double_accuracy !== null ? stats.double_accuracy : '—'}
                 unit={stats.double_accuracy !== null ? '%' : undefined}
-                caption="za poprzedni turniej"
+                caption="ze wszystkich turniejów"
               />
             </Card>
           </div>
@@ -339,40 +346,51 @@ function TrainingSummarySection({ sessions }: { sessions: TrainingSession[] }) {
 
 // ── Events section ────────────────────────────────────────────────────────────
 
-function EventsSection() {
+function EventsSection({ events }: { events: PlayerEvent[] }) {
   return (
     <Card>
-      <SectionHeader label="Nadchodzące wydarzenia" sub={`${EVENTS.length} następnych`} />
+      <SectionHeader
+        label="Nadchodzące wydarzenia"
+        sub={events.length > 0 ? `${events.length} następnych` : 'brak'}
+      />
 
-      <div className="flex flex-col gap-2">
-        {EVENTS.map((e, i) => (
-          <div
-            key={i}
-            className="flex items-start gap-4 rounded-xl border border-border-subtle p-3"
-          >
-            {/* Date box */}
-            <div className="flex w-11 shrink-0 flex-col items-center rounded-lg border border-border-subtle bg-surface-muted px-1 py-1.5 text-center">
-              <span className="font-display text-lg font-extrabold leading-none text-content-primary">{e.day}</span>
-              <span className="text-xs font-semibold uppercase text-content-secondary">{e.month}</span>
-            </div>
+      {events.length === 0 ? (
+        <p className="text-sm text-content-secondary">Brak nadchodzących wydarzeń.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {events.map((e, i) => {
+            const { day, month } = parseDateParts(e.date);
+            const isLeague = e.type === 'league_match';
+            return (
+              <div key={i} className="flex items-center gap-4 rounded-xl border border-border-subtle p-3">
+                {/* Date box */}
+                <div className="flex w-11 shrink-0 flex-col items-center rounded-lg border border-border-subtle bg-surface-muted px-1 py-1.5 text-center">
+                  <span className="font-display text-lg font-extrabold leading-none text-content-primary">{day}</span>
+                  <span className="text-xs font-semibold uppercase text-content-secondary">{month}</span>
+                </div>
 
-            {/* Info */}
-            <div className="min-w-0 flex-1">
-              <div className="mb-0.5 flex flex-wrap items-center gap-2">
-                <Badge variant={EVENT_BADGE[e.type]}>{e.typeLabel}</Badge>
-                {e.soon && (
-                  <span className="text-xs font-medium text-score-up-text">{e.soon}</span>
+                {/* Info */}
+                <div className="min-w-0 flex-1">
+                  <div className="mb-0.5">
+                    <Badge variant={isLeague ? 'accent' : 'neutral'}>
+                      {isLeague ? 'MECZ LIGOWY' : 'TURNIEJ'}
+                    </Badge>
+                  </div>
+                  <p className="truncate text-sm font-semibold text-content-primary">{e.title}</p>
+                  {e.subtitle && (
+                    <p className="truncate text-xs text-content-secondary">{e.subtitle}</p>
+                  )}
+                </div>
+
+                {/* Matchday badge for league matches */}
+                {isLeague && e.matchday != null && (
+                  <span className="shrink-0 text-xs text-content-faint">kol. {e.matchday}</span>
                 )}
               </div>
-              <p className="truncate text-sm font-semibold text-content-primary">{e.title}</p>
-              <p className="truncate text-xs text-content-secondary">{e.venue}</p>
-            </div>
-
-            {/* Time */}
-            <span className="shrink-0 font-display text-lg font-extrabold tabular-nums text-content-primary">{e.time}</span>
-          </div>
-        ))}
-      </div>
+            );
+          })}
+        </div>
+      )}
     </Card>
   );
 }

@@ -6,25 +6,41 @@ import { Bracket } from '../components/bracket/Bracket';
 import { TournamentStats } from '../components/bracket/TournamentStats';
 import { buildManualResult, simulateMatch } from '../utils/simulate';
 import { applyResult, applyGroupMatchResult, applyPlayoffResult, generatePlayoffFromGroups } from '../utils/bracket';
-import { computeMatchStats } from '../utils/statistics';
+import { aggregatePlayerStats, computeMatchStats } from '../utils/statistics';
 import { statisticsApi } from '../api/statistics';
-import { useTournament, useUpdateTournament } from '../hooks/useTournaments';
+import { useTournament, useTournamentStatistics, useUpdateTournament } from '../hooks/useTournaments';
 import { Button } from '../components/ui/Button';
 import { cn } from '../components/ui/cn';
-import type { BracketData } from '../types/bracket';
+import type { BracketData, BracketRound } from '../types/bracket';
+import type { MatchFormat } from '../types/tournament';
 
 type Tab = 'bracket' | 'stats';
+
+// A round can override the tournament's default format via the Fazy step —
+// simulating/manually entering a result for that round's match must honour
+// it too, not just the read-only "BOx set/leg" label shown on the bracket.
+function matchRoundFormat(rounds: BracketRound[], matchId: string, fallback: MatchFormat): MatchFormat {
+  const [rPart] = matchId.split('-');
+  return rounds[parseInt(rPart.slice(1), 10)]?.matchFormat ?? fallback;
+}
 
 export function TournamentPage() {
   const { id }        = useParams<{ id: string }>();
   const tournamentId  = Number(id);
   const navigate      = useNavigate();
 
-  const { data: tournament, isLoading } = useTournament(tournamentId, 5000);
+  const { data: tournament, isLoading, isError } = useTournament(tournamentId, 5000);
   const updateTournament = useUpdateTournament();
   const { username }     = useAuth();
   const isOwner          = !!username && username === tournament?.owner_username;
   const isMutating       = useIsMutating();
+
+  // Tournament-scoped average per player — same figure as the "Statystyki" tab,
+  // shown on bracket cards only for players who have actually played here (a
+  // player's static profile average must never be shown as if it were this
+  // tournament's).
+  const { data: statRecords } = useTournamentStatistics(tournamentId, tournament?.is_active ? 5000 : undefined);
+  const avgByName = new Map(aggregatePlayerStats(statRecords ?? []).map(r => [r.player_name, r.match_average]));
 
   const [bracket,   setBracket]   = useState<BracketData | null>(null);
   const [tab,       setTab]       = useState<Tab>('bracket');
@@ -74,7 +90,8 @@ export function TournamentPage() {
       const [rPart, mPart] = matchId.split('-');
       const match = bracket.rounds[parseInt(rPart.slice(1))]?.matches[parseInt(mPart.slice(1))];
       if (!match) return;
-      const { result, legs } = simulateMatch(match.top, match.bottom, bracket.matchFormat);
+      const matchFormat = matchRoundFormat(bracket.rounds, matchId, bracket.matchFormat);
+      const { result, legs } = simulateMatch(match.top, match.bottom, matchFormat);
       saveBracket(applyResult(bracket, matchId, result));
       saveStats(matchId, match.top, match.bottom, legs);
       return;
@@ -84,7 +101,8 @@ export function TournamentPage() {
       const [rPart, mPart] = matchId.split('-');
       const match = bracket.playoff.rounds[parseInt(rPart.slice(1))]?.matches[parseInt(mPart.slice(1))];
       if (!match) return;
-      const { result, legs } = simulateMatch(match.top, match.bottom, bracket.matchFormat);
+      const matchFormat = matchRoundFormat(bracket.playoff.rounds, matchId, bracket.matchFormat);
+      const { result, legs } = simulateMatch(match.top, match.bottom, matchFormat);
       saveBracket(applyPlayoffResult(bracket, matchId, result));
       saveStats(matchId, match.top, match.bottom, legs);
     }
@@ -92,7 +110,11 @@ export function TournamentPage() {
 
   function handleEnterResult(matchId: string, topScore: number, bottomScore: number) {
     if (!bracket) return;
-    const result = buildManualResult(topScore, bottomScore, bracket.matchFormat);
+    const matchFormat =
+      bracket.format === 'knockout'                        ? matchRoundFormat(bracket.rounds, matchId, bracket.matchFormat) :
+      bracket.format === 'groups' && bracket.playoff        ? matchRoundFormat(bracket.playoff.rounds, matchId, bracket.matchFormat) :
+      bracket.matchFormat;
+    const result = buildManualResult(topScore, bottomScore, matchFormat);
     if (bracket.format === 'knockout') {
       saveBracket(applyResult(bracket, matchId, result));
     } else if (bracket.format === 'groups' && bracket.playoff) {
@@ -120,7 +142,20 @@ export function TournamentPage() {
 
   function handleGeneratePlayoff() {
     if (!bracket || bracket.format !== 'groups') return;
-    saveBracket({ ...bracket, playoff: { rounds: generatePlayoffFromGroups(bracket.groups) } });
+    saveBracket({ ...bracket, playoff: { rounds: generatePlayoffFromGroups(bracket.groups, bracket.phaseConfigs ?? {}) } });
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3">
+        <p className="text-sm text-content-secondary">
+          Turniej nie istnieje albo jest prywatny i nie masz do niego dostępu.
+        </p>
+        <Button variant="secondary" size="sm" onClick={() => navigate('/turnieje')}>
+          Wróć do listy
+        </Button>
+      </div>
+    );
   }
 
   if (isLoading || !bracket) {
@@ -181,6 +216,7 @@ export function TournamentPage() {
         <Bracket
           data={bracket}
           isOwner={isOwner}
+          avgByName={avgByName}
           onSimulate={handleSimulate}
           onEnterResult={handleEnterResult}
           onSimulateGroup={handleSimulateGroupMatch}

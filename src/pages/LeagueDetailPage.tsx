@@ -58,7 +58,7 @@ export function LeagueDetailPage() {
   const scheduleDone = league.match_count > 0;
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-4 py-6 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
 
       {/* Breadcrumb */}
       <div className="mb-1 text-xs text-content-secondary">

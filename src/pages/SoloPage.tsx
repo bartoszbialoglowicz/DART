@@ -1,27 +1,39 @@
 import { useRef, useState } from 'react';
-import { useBlocker } from 'react-router-dom';
+import { useBlocker, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { LiveMatchScreen } from '../components/match/LiveMatchScreen';
-import { CheckoutsGame } from '../components/solo/CheckoutsGame';
-import { SKILL_LEVELS, type SkillLevel } from '../utils/dart501';
-import { SET_OPTIONS, LEG_OPTIONS } from '../types/tournament';
+import { avgToSigma, botLevel } from '../utils/dart501';
+import { SET_MIN, SET_MAX, LEG_MIN, LEG_MAX, roundToNearestOdd, roundToNearestMultipleOf3 } from '../types/tournament';
 import type { BracketMatch, LegRecord, LegRound } from '../types/bracket';
 import type { MatchFormat } from '../types/tournament';
 import { useAddTrainingSession } from '../hooks/useTraining';
+import { useCreatePendingResult } from '../hooks/usePendingResults';
 import { computeMatchStats } from '../utils/statistics';
+import { usePlayers } from '../hooks/usePlayers';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
+import { Tag } from '../components/ui/Tag';
 import Modal from '../components/ui/Modal';
-import { OptionButton } from '../components/ui/OptionButton';
+import { Toggle } from '../components/ui/Toggle';
 import { SelectableCard } from '../components/ui/SelectableCard';
+import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { BestOfField } from '../components/tournament/BestOfField';
+import { PlayerSearchSelect } from '../components/league/PlayerSearchSelect';
+import type { Player } from '../types/player';
 
-type ActiveMode    = 'vs-cpu' | 'vs-guest' | 'checkouts' | null;
-type CheckoutsMode = 'easy' | 'hard';
+type ActiveMode = 'vs-cpu' | 'vs-guest' | null;
+
+// 'checkouts' and 'bob27' are routed to their own pages (/solo/checkouts, /solo/bob27)
+// instead of being handled as in-page modes, so a browser refresh mid-game keeps
+// the player on the game screen instead of bouncing back to mode selection.
+const ROUTED_MODES = new Set(['checkouts', 'bob27', '501-solo', 'highscore', 'sector']);
 
 interface SoloConfig {
-  difficulty?: SkillLevel;
-  guestName?:  string;
-  matchFormat: MatchFormat;
+  difficulty?:     { label: string; sigma: number };
+  guestName?:      string;
+  guestPlayerId?:  number;
+  matchFormat:     MatchFormat;
 }
 
 // ── Session persistence ───────────────────────────────────────────────────────
@@ -84,10 +96,10 @@ const MODES = [
     ),
   },
   {
-    id: '501-solo',
+    id: '501-solo' as const,
     title: '501 Solo',
     description: 'Trenuj 501 samodzielnie, bez przeciwnika.',
-    available: false,
+    available: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7">
         <circle cx="12" cy="12" r="9" />
@@ -97,10 +109,10 @@ const MODES = [
     ),
   },
   {
-    id: 'highscore',
+    id: 'highscore' as const,
     title: 'Highscore',
-    description: 'Zdobądź jak największy wynik w jednym rzucie.',
-    available: false,
+    description: 'Zdobądź jak największy wynik z wybranej liczby lotek.',
+    available: true,
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7">
         <polyline points="3 17 9 11 13 15 21 7" />
@@ -119,6 +131,31 @@ const MODES = [
       </svg>
     ),
   },
+  {
+    id: 'bob27' as const,
+    title: "Bob's 27",
+    description: 'Rzucaj zegar pól podwójnych od D1 do D20 i Bulla, zaczynając od 27 punktów.',
+    available: true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 3" />
+      </svg>
+    ),
+  },
+  {
+    id: 'sector' as const,
+    title: 'Jeden sektor',
+    description: 'Celuj cały czas w ten sam sektor — śledź % trafień i score.',
+    available: true,
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-7 w-7">
+        <circle cx="12" cy="12" r="9" />
+        <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
+      </svg>
+    ),
+  },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -126,18 +163,30 @@ const MODES = [
 export function SoloPage() {
   const [activeMode,    setActiveMode]    = useState<ActiveMode>(null);
   const [soloConfig,    setSoloConfig]    = useState<SoloConfig | null>(null);
-  const [checkoutsMode, setCheckoutsMode] = useState<CheckoutsMode | null>(null);
   const [savedSession,  setSavedSession]  = useState<SoloSession | null>(() => loadSession());
 
-  const completedLegsRef   = useRef<LegRecord[]>([]);
-  const currentLegRef      = useRef<{ rounds: LegRound[]; activePlayer: 0 | 1 } | null>(null);
-  const addTrainingSession = useAddTrainingSession();
+  const navigate             = useNavigate();
+  const { username }        = useAuth();
+  const completedLegsRef    = useRef<LegRecord[]>([]);
+  const currentLegRef       = useRef<{ rounds: LegRound[]; activePlayer: 0 | 1 } | null>(null);
+  const addTrainingSession  = useAddTrainingSession();
+  const createPendingResult = useCreatePendingResult();
 
   // Block router navigation while a 501 game is active in the UI
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       soloConfig !== null && currentLocation.pathname !== nextLocation.pathname
   );
+
+  // Mode card click: routed games get their own URL (so a refresh mid-game stays
+  // put), in-page modes just switch local state as before.
+  function openMode(id: string) {
+    if (ROUTED_MODES.has(id)) {
+      navigate(`/solo/${id}`);
+    } else {
+      setActiveMode(id as ActiveMode);
+    }
+  }
 
   // Called when the user confirms game setup and the match begins
   function startSession(config: SoloConfig) {
@@ -168,7 +217,6 @@ export function SoloPage() {
   function handleBack() {
     setSoloConfig(null);
     setActiveMode(null);
-    setCheckoutsMode(null);
     completedLegsRef.current = [];
     currentLegRef.current    = null;
     setSavedSession(loadSession()); // refresh banner
@@ -189,23 +237,43 @@ export function SoloPage() {
     }
   }
 
+  // Fires automatically the instant the match is won (see useMatchEngine's
+  // auto-save effect) — must not exit, since the summary screen is still
+  // showing; leaving is the "Zamknij" button's job (onClose → handleBack).
   function handleSoloResult() {
-    const legs = completedLegsRef.current;
+    const legs    = completedLegsRef.current;
+    const today   = new Date().toISOString().slice(0, 10);
     if (legs.length > 0) {
-      const [playerStats] = computeMatchStats('solo', legs, ['Ty', 'Przeciwnik']);
+      const guestName = soloConfig?.guestName?.trim() || 'Gość';
+      const [playerStats, guestStats] = computeMatchStats('solo', legs, ['Ty', guestName]);
+
       if (playerStats.match_average > 0) {
         addTrainingSession.mutate({
-          played_at:       new Date().toISOString().slice(0, 10),
+          played_at:       today,
           average:         Math.round(playerStats.match_average * 100) / 100,
           legs:            legs.length,
           double_attempts: playerStats.double_attempts,
           double_hits:     playerStats.double_hits,
         });
       }
+
+      if (soloConfig?.guestPlayerId && guestStats.match_average > 0) {
+        const guestLegsWon  = legs.filter(l => l.winner === 'bottom').length;
+        const guestLegsLost = legs.filter(l => l.winner === 'top').length;
+        createPendingResult.mutate({
+          for_player_id:   soloConfig.guestPlayerId,
+          opponent_name:   username ?? 'Nieznany',
+          played_at:       today,
+          average:         Math.round(guestStats.match_average * 100) / 100,
+          legs_won:        guestLegsWon,
+          legs_lost:       guestLegsLost,
+          double_attempts: guestStats.double_attempts,
+          double_hits:     guestStats.double_hits,
+        });
+      }
     }
     clearSession();
     setSavedSession(null);
-    handleBack();
   }
 
   // ── Active 501 games ───────────────────────────────────────────────────────
@@ -269,18 +337,10 @@ export function SoloPage() {
     return <VsGuestSetup onStart={startSession} onBack={handleBack} />;
   }
 
-  if (activeMode === 'checkouts' && checkoutsMode) {
-    return <CheckoutsGame mode={checkoutsMode} onBack={handleBack} />;
-  }
-
-  if (activeMode === 'checkouts') {
-    return <CheckoutsSetup onStart={setCheckoutsMode} onBack={handleBack} />;
-  }
-
   // ── Mode selection ─────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-6 py-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
       <h1 className="mb-6 text-lg font-semibold text-content-primary">Tryb solo</h1>
 
       {savedSession && (
@@ -310,7 +370,7 @@ export function SoloPage() {
             key={mode.id}
             layout="stack"
             disabled={!mode.available}
-            onClick={mode.available ? () => setActiveMode(mode.id as ActiveMode) : undefined}
+            onClick={mode.available ? () => openMode(mode.id) : undefined}
             icon={mode.icon}
             title={mode.title}
             description={mode.description}
@@ -345,87 +405,63 @@ function BlockerDialog({ blocker }: { blocker: ReturnType<typeof useBlocker> }) 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function FormatSection({
-  sets, onSets, legs, onLegs,
+  setsInput, onSetsChange, onSetsBlur, legsInput, onLegsChange, onLegsBlur,
 }: {
-  sets: number; onSets: (n: number) => void;
-  legs: number; onLegs: (n: number) => void;
+  setsInput: string; onSetsChange: (v: string) => void; onSetsBlur: () => void;
+  legsInput: string; onLegsChange: (v: string) => void; onLegsBlur: () => void;
 }) {
   return (
     <>
       <section className="mb-6">
-        <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
-          Sety (best of)
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {SET_OPTIONS.map((n) => (
-            <OptionButton key={n} selected={sets === n} onClick={() => onSets(n)}>{n}</OptionButton>
-          ))}
-        </div>
+        <BestOfField label="Sety (best of)" value={setsInput} min={SET_MIN} max={SET_MAX} onChange={onSetsChange} onBlur={onSetsBlur} />
       </section>
 
       <section className="mb-8">
-        <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
-          Legi (best of)
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {LEG_OPTIONS.map((n) => (
-            <OptionButton key={n} selected={legs === n} onClick={() => onLegs(n)}>{n}</OptionButton>
-          ))}
-        </div>
+        <BestOfField label="Legi (best of)" value={legsInput} min={LEG_MIN} max={LEG_MAX} onChange={onLegsChange} onBlur={onLegsBlur} />
       </section>
     </>
   );
 }
 
-// ── Setup screens ─────────────────────────────────────────────────────────────
-
-function CheckoutsSetup({
-  onStart, onBack,
+function MaxDartsPerLegField({
+  enabled, onEnabledChange, input, onInputChange, onBlur,
 }: {
-  onStart: (mode: CheckoutsMode) => void;
-  onBack:  () => void;
+  enabled: boolean; onEnabledChange: (v: boolean) => void;
+  input: string; onInputChange: (v: string) => void; onBlur: () => void;
 }) {
-  const [mode, setMode] = useState<CheckoutsMode>('easy');
-
   return (
-    <div className="mx-auto w-full max-w-sm px-6 py-8">
-      <Button variant="ghost" size="md" onClick={onBack} className="mb-6">
-        ← Wróć
-      </Button>
-
-      <h2 className="mb-2 text-lg font-semibold text-content-primary">Checkouts</h2>
-      <p className="mb-8 text-xs text-content-secondary leading-relaxed">
-        Zacznij od D20 (40). Zamknięcie w 3 lotkach → +10 pkt. Brak → −1 pkt (min. 40).
-      </p>
-
-      <section className="mb-8">
-        <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
-          Tryb
-        </p>
-        <div className="flex flex-col gap-2">
-          <SelectableCard
-            selected={mode === 'easy'}
-            tone="accent"
-            title="Easy"
-            meta="Gra trwa bez limitu"
-            onClick={() => setMode('easy')}
-          />
-          <SelectableCard
-            selected={mode === 'hard'}
-            tone="danger"
-            title="Hard"
-            meta="Koniec przy braku na 40"
-            onClick={() => setMode('hard')}
-          />
+    <section className="mb-8 flex flex-col gap-2 rounded-lg border border-border-subtle bg-surface-muted px-4 py-3">
+      <label className="flex cursor-pointer items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-content-primary">Limit lotek na leg</p>
+          <p className="text-xs text-content-secondary">
+            Jeśli nikt nie zamknie lega w tym limicie — decyduje bull.
+          </p>
         </div>
-      </section>
+        <Toggle checked={enabled} onChange={onEnabledChange} />
+      </label>
 
-      <Button variant="primary" size="lg" fullWidth onClick={() => onStart(mode)}>
-        Zagraj
-      </Button>
-    </div>
+      {enabled && (
+        <div className="flex flex-col gap-1.5">
+          <Input
+            type="number"
+            min={3}
+            step={3}
+            value={input}
+            onChange={e => onInputChange(e.target.value)}
+            onBlur={onBlur}
+            className="max-w-32"
+          />
+          <p className="text-xs text-content-faint">
+            Zaokrąglane do najbliższej wielokrotności 3 (jedna kolejka = 3 lotki).
+          </p>
+        </div>
+      )}
+    </section>
   );
 }
+
+// ── Setup screens ─────────────────────────────────────────────────────────────
 
 function VsCpuSetup({
   onStart, onBack,
@@ -433,12 +469,18 @@ function VsCpuSetup({
   onStart: (cfg: SoloConfig) => void;
   onBack:  () => void;
 }) {
-  const [difficulty, setDifficulty] = useState<SkillLevel>(SKILL_LEVELS[3]);
-  const [sets,       setSets]       = useState<number>(SET_OPTIONS[0]);
-  const [legs,       setLegs]       = useState<number>(LEG_OPTIONS[0]);
+  const [avgStr,   setAvgStr]   = useState('45');
+  const [setsInput, setSetsInput] = useState(String(SET_MIN));
+  const [legsInput, setLegsInput] = useState('3');
+  const [maxDartsEnabled, setMaxDartsEnabled] = useState(false);
+  const [maxDartsInput,   setMaxDartsInput]   = useState('21');
+  const avg  = Number(avgStr);
+  const sets = roundToNearestOdd(Number(setsInput), SET_MIN, SET_MAX);
+  const legs = roundToNearestOdd(Number(legsInput), LEG_MIN, LEG_MAX);
+  const resolvedMaxDartsPerLeg = maxDartsEnabled ? roundToNearestMultipleOf3(Number(maxDartsInput)) : null;
 
   return (
-    <div className="mx-auto w-full max-w-sm px-6 py-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
       <Button variant="ghost" size="md" onClick={onBack} className="mb-6">
         ← Wróć
       </Button>
@@ -446,29 +488,48 @@ function VsCpuSetup({
       <h2 className="mb-8 text-lg font-semibold text-content-primary">501 vs CPU</h2>
 
       <section className="mb-6">
-        <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
-          Poziom bota
-        </p>
-        <div className="flex flex-col gap-2">
-          {SKILL_LEVELS.map((level) => (
-            <SelectableCard
-              key={level.id}
-              selected={difficulty.id === level.id}
-              title={level.label}
-              meta={`σ = ${level.sigma} mm`}
-              onClick={() => setDifficulty(level)}
-            />
-          ))}
+        <div className="mb-2 flex items-baseline justify-between">
+          <p className="text-xs font-medium uppercase tracking-widest text-content-secondary">Poziom bota</p>
+          <span className="text-sm font-semibold text-content-primary">
+            {botLevel(avg)}
+            <span className="ml-1.5 text-xs font-normal text-content-secondary">śr. {avg}</span>
+          </span>
+        </div>
+        <input
+          type="range"
+          min="10"
+          max="110"
+          step="1"
+          value={avgStr}
+          onChange={e => setAvgStr(e.target.value)}
+          className="w-full cursor-pointer accent-content-accent"
+        />
+        <div className="mt-1 flex justify-between text-xs text-content-faint">
+          <span>Rekreacyjny</span>
+          <span>Średni</span>
+          <span>Pro</span>
         </div>
       </section>
 
-      <FormatSection sets={sets} onSets={setSets} legs={legs} onLegs={setLegs} />
+      <FormatSection
+        setsInput={setsInput} onSetsChange={setSetsInput} onSetsBlur={() => setSetsInput(String(sets))}
+        legsInput={legsInput} onLegsChange={setLegsInput} onLegsBlur={() => setLegsInput(String(legs))}
+      />
+
+      <MaxDartsPerLegField
+        enabled={maxDartsEnabled} onEnabledChange={setMaxDartsEnabled}
+        input={maxDartsInput} onInputChange={setMaxDartsInput}
+        onBlur={() => setMaxDartsInput(String(roundToNearestMultipleOf3(Number(maxDartsInput))))}
+      />
 
       <Button
         variant="primary"
         size="lg"
         fullWidth
-        onClick={() => onStart({ difficulty, matchFormat: { sets, legs } })}
+        onClick={() => onStart({
+          difficulty:  { label: botLevel(avg), sigma: avgToSigma(avg) },
+          matchFormat: { sets, legs, ...(resolvedMaxDartsPerLeg != null ? { max_darts_per_leg: resolvedMaxDartsPerLeg } : {}) },
+        })}
       >
         Zagraj
       </Button>
@@ -476,18 +537,51 @@ function VsCpuSetup({
   );
 }
 
+type GuestMode = 'anonymous' | 'registered';
+
+const GUEST_MODE_OPTIONS = [
+  { value: 'anonymous'  as GuestMode, label: 'Gość' },
+  { value: 'registered' as GuestMode, label: 'Zarejestrowany' },
+];
+
 function VsGuestSetup({
   onStart, onBack,
 }: {
   onStart: (cfg: SoloConfig) => void;
   onBack:  () => void;
 }) {
-  const [guestName, setGuestName] = useState('');
-  const [sets,      setSets]      = useState<number>(SET_OPTIONS[0]);
-  const [legs,      setLegs]      = useState<number>(LEG_OPTIONS[0]);
+  const [guestMode,       setGuestMode]       = useState<GuestMode>('anonymous');
+  const [guestName,       setGuestName]       = useState('');
+  const [selectedPlayer,  setSelectedPlayer]  = useState<Player | null>(null);
+  const [setsInput, setSetsInput] = useState(String(SET_MIN));
+  const [legsInput, setLegsInput] = useState('3');
+  const [maxDartsEnabled, setMaxDartsEnabled] = useState(false);
+  const [maxDartsInput,   setMaxDartsInput]   = useState('21');
+
+  const { data: playersData } = usePlayers();
+  const allPlayers = playersData ?? [];
+
+  const sets = roundToNearestOdd(Number(setsInput), SET_MIN, SET_MAX);
+  const legs = roundToNearestOdd(Number(legsInput), LEG_MIN, LEG_MAX);
+  const resolvedMaxDartsPerLeg = maxDartsEnabled ? roundToNearestMultipleOf3(Number(maxDartsInput)) : null;
+  const matchFormat: MatchFormat = { sets, legs, ...(resolvedMaxDartsPerLeg != null ? { max_darts_per_leg: resolvedMaxDartsPerLeg } : {}) };
+
+  function handleStart() {
+    if (guestMode === 'registered' && selectedPlayer) {
+      onStart({
+        guestName:     `${selectedPlayer.first_name} ${selectedPlayer.last_name}`,
+        guestPlayerId: selectedPlayer.id,
+        matchFormat,
+      });
+    } else {
+      onStart({ guestName, matchFormat });
+    }
+  }
+
+  const canStart = guestMode === 'registered' ? !!selectedPlayer : true;
 
   return (
-    <div className="mx-auto w-full max-w-sm px-6 py-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
       <Button variant="ghost" size="md" onClick={onBack} className="mb-6">
         ← Wróć
       </Button>
@@ -496,24 +590,77 @@ function VsGuestSetup({
 
       <section className="mb-6">
         <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
-          Imię gościa
+          Typ gościa
         </p>
-        <Input
-          type="text"
-          value={guestName}
-          onChange={(e) => setGuestName(e.target.value)}
-          placeholder="Gość"
-          maxLength={30}
+        <SegmentedControl
+          fullWidth
+          aria-label="Typ gościa"
+          value={guestMode}
+          onChange={(m) => { setGuestMode(m); setSelectedPlayer(null); setGuestName(''); }}
+          options={GUEST_MODE_OPTIONS}
         />
       </section>
 
-      <FormatSection sets={sets} onSets={setSets} legs={legs} onLegs={setLegs} />
+      {guestMode === 'anonymous' ? (
+        <section className="mb-6">
+          <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
+            Imię gościa
+          </p>
+          <Input
+            type="text"
+            value={guestName}
+            onChange={(e) => setGuestName(e.target.value)}
+            placeholder="Gość"
+            maxLength={30}
+          />
+        </section>
+      ) : (
+        <section className="mb-6">
+          <p className="mb-3 text-xs font-medium uppercase tracking-widest text-content-secondary">
+            Wybierz gracza
+          </p>
+          {selectedPlayer ? (
+            <div className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface-overlay px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Tag>{selectedPlayer.first_name} {selectedPlayer.last_name}</Tag>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPlayer(null)}
+                className="text-content-faint transition-colors hover:text-content-primary"
+                aria-label="Zmień gracza"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <PlayerSearchSelect
+              players={allPlayers.filter(p => !p.cpu)}
+              excludeIds={new Set()}
+              placeholder="Szukaj gracza…"
+              onSelect={setSelectedPlayer}
+            />
+          )}
+        </section>
+      )}
+
+      <FormatSection
+        setsInput={setsInput} onSetsChange={setSetsInput} onSetsBlur={() => setSetsInput(String(sets))}
+        legsInput={legsInput} onLegsChange={setLegsInput} onLegsBlur={() => setLegsInput(String(legs))}
+      />
+
+      <MaxDartsPerLegField
+        enabled={maxDartsEnabled} onEnabledChange={setMaxDartsEnabled}
+        input={maxDartsInput} onInputChange={setMaxDartsInput}
+        onBlur={() => setMaxDartsInput(String(roundToNearestMultipleOf3(Number(maxDartsInput))))}
+      />
 
       <Button
         variant="primary"
         size="lg"
         fullWidth
-        onClick={() => onStart({ guestName, matchFormat: { sets, legs } })}
+        disabled={!canStart}
+        onClick={handleStart}
       >
         Zagraj
       </Button>

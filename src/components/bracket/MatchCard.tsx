@@ -8,11 +8,12 @@ type Props = {
   match:          BracketMatch;
   matchFormat:    MatchFormat;
   isOwner:        boolean;
+  avgByName?:     Map<string, number>;
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, topScore: number, bottomScore: number) => void;
 };
 
-export function MatchCard({ match, matchFormat, isOwner, onSimulate, onEnterResult }: Props) {
+export function MatchCard({ match, matchFormat, isOwner, avgByName, onSimulate, onEnterResult }: Props) {
   const { top, bottom, result, legs } = match;
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -37,14 +38,14 @@ export function MatchCard({ match, matchFormat, isOwner, onSimulate, onEnterResu
           isClickable ? 'cursor-pointer transition-colors hover:bg-surface-muted' : 'cursor-default',
         )}
       >
-        <Slot slot={top}    winner={topIsWinner}    loser={result !== undefined && !topIsWinner} />
+        <Slot slot={top}    winner={topIsWinner}    loser={result !== undefined && !topIsWinner} avgByName={avgByName} />
 
         {result ? (
-          <div className="border-t border-border-subtle py-1 text-center font-display text-xs font-semibold tabular-nums text-content-accent">
+          <div className="border-y border-border-subtle py-1 text-center font-display text-xs font-semibold tabular-nums text-content-accent">
             {result.displayScore}
           </div>
         ) : isLive ? (
-          <div className="flex items-center justify-center gap-1.5 border-t border-border-subtle py-1">
+          <div className="flex items-center justify-center gap-1.5 border-y border-border-subtle py-1">
             <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-score-up" />
             <span className="font-display text-xs font-semibold tabular-nums text-content-accent">
               {topLegsWon}–{bottomLegsWon}
@@ -54,7 +55,7 @@ export function MatchCard({ match, matchFormat, isOwner, onSimulate, onEnterResu
           <div className="border-t border-border-subtle" />
         )}
 
-        <Slot slot={bottom} winner={bottomIsWinner} loser={result !== undefined && !bottomIsWinner} />
+        <Slot slot={bottom} winner={bottomIsWinner} loser={result !== undefined && !bottomIsWinner} avgByName={avgByName} />
       </button>
 
       {menuOpen && (
@@ -62,6 +63,7 @@ export function MatchCard({ match, matchFormat, isOwner, onSimulate, onEnterResu
           match={match}
           matchFormat={matchFormat}
           isOwner={isOwner}
+          avgByName={avgByName}
           onSimulate={onSimulate}
           onEnterResult={onEnterResult}
           onClose={() => setMenuOpen(false)}
@@ -71,13 +73,18 @@ export function MatchCard({ match, matchFormat, isOwner, onSimulate, onEnterResu
   );
 }
 
-function Slot({ slot, winner, loser }: { slot: MatchSlot; winner: boolean; loser: boolean }) {
+function Slot({
+  slot, winner, loser, avgByName,
+}: {
+  slot: MatchSlot; winner: boolean; loser: boolean; avgByName?: Map<string, number>;
+}) {
+  const tournamentAvg = slot.playerName ? avgByName?.get(slot.playerName) : undefined;
   return (
     <div
       className={cn(
         'flex h-9 min-w-0 items-center gap-1 px-3 text-xs transition-colors',
         winner && 'font-semibold text-content-primary',
-        loser && 'text-content-secondary opacity-40',
+        loser && 'text-content-faint',
         !winner && !loser && 'text-content-secondary',
       )}
     >
@@ -86,8 +93,8 @@ function Slot({ slot, winner, loser }: { slot: MatchSlot; winner: boolean; loser
           ? `Gracz ${slot.playerId}`
           : <span className="opacity-40">—</span>)}
       </span>
-      {slot.playerAvg !== null && slot.playerAvg > 0 && (
-        <span className="shrink-0 opacity-50">({slot.playerAvg.toFixed(1)})</span>
+      {tournamentAvg !== undefined && (
+        <span className={cn('shrink-0', !loser && 'opacity-50')}>({tournamentAvg.toFixed(1)})</span>
       )}
     </div>
   );

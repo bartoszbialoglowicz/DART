@@ -11,6 +11,7 @@ import { KnockoutBracket } from './KnockoutBracket';
 type Props = {
   data:                  GroupsBracketData;
   isOwner:               boolean;
+  avgByName?:            Map<string, number>;
   onSimulateGroup?:      (groupId: string, matchId: string) => void;
   onEnterGroupResult?:   (groupId: string, matchId: string, top: number, bottom: number) => void;
   onGeneratePlayoff?:    () => void;
@@ -21,7 +22,7 @@ type Props = {
 const QUALIFIERS_PER_GROUP = 2;
 
 export function GroupsBracket({
-  data, isOwner,
+  data, isOwner, avgByName,
   onSimulateGroup, onEnterGroupResult, onGeneratePlayoff,
   onSimulatePlayoff, onEnterPlayoffResult,
 }: Props) {
@@ -43,6 +44,7 @@ export function GroupsBracket({
               group={group}
               matchFormat={matchFormat}
               isOwner={isOwner}
+              avgByName={avgByName}
               onSimulate={onSimulateGroup ? (matchId) => onSimulateGroup(group.id, matchId) : undefined}
               onEnterResult={onEnterGroupResult ? (matchId, t, b) => onEnterGroupResult(group.id, matchId, t, b) : undefined}
             />
@@ -64,9 +66,9 @@ export function GroupsBracket({
           </h2>
           <KnockoutBracket
             rounds={playoff.rounds}
-            playerCount={(playoff.rounds[0]?.matches.length ?? 1) * 2}
             matchFormat={matchFormat}
             isOwner={isOwner}
+            avgByName={avgByName}
             onSimulate={onSimulatePlayoff}
             onEnterResult={onEnterPlayoffResult}
           />
@@ -79,11 +81,12 @@ export function GroupsBracket({
 // ── Group card ────────────────────────────────────────────────────────────────
 
 function GroupCard({
-  group, matchFormat, isOwner, onSimulate, onEnterResult,
+  group, matchFormat, isOwner, avgByName, onSimulate, onEnterResult,
 }: {
   group:          Group;
   matchFormat:    MatchFormat;
   isOwner:        boolean;
+  avgByName?:     Map<string, number>;
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, top: number, bottom: number) => void;
 }) {
@@ -92,10 +95,15 @@ function GroupCard({
 
   return (
     <Card padding="none" className="w-72 shrink-0 overflow-hidden">
-      <div className="border-b border-border-subtle bg-accent-soft px-4 py-2.5">
+      <div className="flex items-center justify-between border-b border-border-subtle bg-accent-soft px-4 py-2.5">
         <span className="text-xs font-bold uppercase tracking-widest text-content-accent">
           Grupa {group.label}
         </span>
+        {group.board != null && (
+          <span className="text-xs font-medium tabular-nums text-content-accent">
+            Tarcza {group.board}
+          </span>
+        )}
       </div>
 
       <StandingsTable standings={standings} qualifiers={QUALIFIERS_PER_GROUP} />
@@ -110,6 +118,7 @@ function GroupCard({
             match={match}
             matchFormat={matchFormat}
             isOwner={isOwner}
+            avgByName={avgByName}
             onSimulate={onSimulate}
             onEnterResult={onEnterResult}
           />
@@ -158,11 +167,12 @@ function StandingRow({ standing: s, rank, advances }: { standing: GroupStanding;
 // ── Group match row ───────────────────────────────────────────────────────────
 
 function GroupMatchRow({
-  match, matchFormat, isOwner, onSimulate, onEnterResult,
+  match, matchFormat, isOwner, avgByName, onSimulate, onEnterResult,
 }: {
   match:          BracketMatch;
   matchFormat:    MatchFormat;
   isOwner:        boolean;
+  avgByName?:     Map<string, number>;
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, top: number, bottom: number) => void;
 }) {
@@ -197,6 +207,7 @@ function GroupMatchRow({
           match={match}
           matchFormat={matchFormat}
           isOwner={isOwner}
+          avgByName={avgByName}
           onSimulate={onSimulate}
           onEnterResult={onEnterResult}
           onClose={() => setOpen(false)}

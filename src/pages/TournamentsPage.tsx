@@ -1,37 +1,37 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CreateTournamentModal } from '../components/tournament/CreateTournamentModal';
-import { AuthModal } from '../components/auth/AuthModal';
-import { generateBracket } from '../utils/bracket';
-import { useTournaments, useCreateTournament } from '../hooks/useTournaments';
 import { useAuth } from '../context/AuthContext';
-import type { TournamentConfig } from '../types/tournament';
+import { useTournaments } from '../hooks/useTournaments';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
+import { Tag } from '../components/ui/Tag';
 import { SelectableCard } from '../components/ui/SelectableCard';
+import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { AuthModal } from '../components/auth/AuthModal';
+import { useMemo, useState } from 'react';
+
+type StatusFilter = 'active' | 'finished';
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: 'active', label: 'W trakcie' },
+  { value: 'finished', label: 'Rozegrane' },
+];
 
 export function TournamentsPage() {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [authOpen,  setAuthOpen]  = useState(false);
-  const navigate         = useNavigate();
-  const { username }     = useAuth();
-  const createTournament = useCreateTournament();
-  const { data, isLoading } = useTournaments();
+  const [authOpen, setAuthOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const navigate             = useNavigate();
+  const { username }         = useAuth();
+  const { data, isLoading }  = useTournaments();
 
-  const tournaments = data?.results ?? [];
-
-  function handleCreate(config: TournamentConfig) {
-    const bracket = generateBracket(config);
-    setModalOpen(false);
-    createTournament.mutate(
-      { bracket, is_private: config.is_private, start_date: config.start_date },
-      { onSuccess: (saved) => navigate(`/turnieje/${saved.id}`) },
-    );
-  }
+  const allTournaments = data?.results ?? [];
+  const tournaments = useMemo(
+    () => allTournaments.filter((t) => (statusFilter === 'active' ? t.is_active : !t.is_active)),
+    [allTournaments, statusFilter],
+  );
 
   function handleCreateClick() {
     if (username) {
-      setModalOpen(true);
+      navigate('/turnieje/nowy');
     } else {
       setAuthOpen(true);
     }
@@ -45,56 +45,40 @@ export function TournamentsPage() {
     );
   }
 
-  if (tournaments.length === 0) {
+  if (allTournaments.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <p className="text-sm text-content-secondary">Brak turniejów.</p>
-        {username ? (
-          <Button
-            variant="primary"
-            size="lg"
-            loading={createTournament.isPending}
-            disabled={createTournament.isPending}
-            onClick={() => setModalOpen(true)}
-          >
-            {createTournament.isPending ? 'Tworzenie...' : 'Utwórz turniej'}
-          </Button>
-        ) : (
-          <>
-            <p className="text-sm text-content-secondary">
-              Musisz być zalogowany, aby utworzyć turniej.
-            </p>
-            <Button variant="primary" size="lg" onClick={() => setAuthOpen(true)}>
-              Zaloguj się
-            </Button>
-          </>
-        )}
-
-        {modalOpen && (
-          <CreateTournamentModal
-            onConfirm={handleCreate}
-            onClose={() => setModalOpen(false)}
-          />
-        )}
+        <Button variant="primary" size="lg" onClick={handleCreateClick}>
+          Utwórz turniej
+        </Button>
         {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
       </div>
     );
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-6 py-8">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 lg:px-8">
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-lg font-semibold text-content-primary">Turnieje</h1>
-        <Button
-          variant="primary"
-          size="sm"
-          loading={createTournament.isPending}
-          disabled={createTournament.isPending}
-          onClick={handleCreateClick}
-        >
-          {createTournament.isPending ? 'Tworzenie...' : 'Utwórz turniej'}
+        <Button variant="primary" size="sm" onClick={handleCreateClick}>
+          + Utwórz turniej
         </Button>
       </div>
+
+      <SegmentedControl
+        value={statusFilter}
+        onChange={setStatusFilter}
+        options={STATUS_OPTIONS}
+        aria-label="Filtr statusu turnieju"
+        className="mb-4"
+      />
+
+      {tournaments.length === 0 && (
+        <p className="py-6 text-center text-sm text-content-secondary">
+          {statusFilter === 'active' ? 'Brak turniejów w trakcie.' : 'Brak rozegranych turniejów.'}
+        </p>
+      )}
 
       <ul className="flex flex-col gap-2">
         {tournaments.map((t) => (
@@ -106,6 +90,7 @@ export function TournamentsPage() {
                 <>
                   {t.format === 'knockout' ? 'SKO' : 'Grupy'} · {t.bracket.playerCount} graczy · {new Date(t.created_at).toLocaleDateString('pl-PL')}
                   {t.owner_username && <> · <span className="text-content-faint">{t.owner_username}</span></>}
+                  {t.is_private && <> · <Tag>Prywatny</Tag></>}
                 </>
               }
               meta={
@@ -120,12 +105,6 @@ export function TournamentsPage() {
         ))}
       </ul>
 
-      {modalOpen && (
-        <CreateTournamentModal
-          onConfirm={handleCreate}
-          onClose={() => setModalOpen(false)}
-        />
-      )}
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </div>
   );

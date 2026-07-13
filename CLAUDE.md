@@ -33,12 +33,33 @@ Use Tailwind's built-in size/spacing/radius scale (`text-sm`, `p-4`, `rounded-xl
 - ❌ Raw Tailwind palette colours: `text-green-400`, `bg-red-500/15`, `bg-blue-500`, `text-amber-400`, any `*-gray-*`. Use status or `content`/`surface` tokens.
 - ❌ Hex / rgb literals in `.tsx` (e.g. `const PURPLE = '#ac58e9'`). Reference a token.
 - ⚠ `brand-*` utilities used directly (`text-brand-white`, `bg-brand-purple/25`). Deprecated — migrating away. Do not add new usages.
+- ❌ Hand-rolling things a primitive already does. An overlay/dialog/confirm popup is `Modal` — never a bespoke `fixed inset-0 … bg-black/x` with its own `z-[...]`. A pick-one control (modes, levels, sets/legs, toggles) is `OptionButton` / `SelectableCard` / `SegmentedControl`. The lint cannot see these — it is on you to reach for the primitive.
+
+## The lint opt-out is human-only
+
+The guard honours `ui-lint-disable-file` (top of file) and `ui-lint-ignore` (end of line). These exist for a tiny set of **sanctioned expressive/"art" components** — deliberately off-system pieces like the champion `WinnerCard` (poster typography, decorative gradients, trophy gold). They are NOT a way to make a finding go away.
+
+- You may **never** add either marker yourself to silence the lint. A lint finding means *fix the finding* (use the token / scale / primitive).
+- A new expressive exception is a human decision. If you think something genuinely needs to break the system, **stop and ask** — don't disable and proceed.
+- Treat any file carrying a disable marker as off-limits for "tokenise this" cleanups; it's intentional.
+
+## Lint can't see these — review by hand
+
+The guard catches the bans above. These cause just as much drift but pass lint green, so check them yourself on every diff:
+
+- **Elevation.** Anything sitting on the page background is a card → `bg-surface-overlay` (matches `ProfilePage`), never `bg-surface-base` (it blends and reads "dark/flat"). Hover lifts one step: `hover:bg-surface-muted`. **Never** `bg-surface-accent` / `hover:bg-surface-accent` as a fill — that token is solid purple and reads as a glaring flash.
+- **No opacity dilution of tokens.** `border-border-subtle/40`, `text-content-secondary/60` and friends are the new `bg-white/3`. Dim text → `text-content-faint`. Borders → full `border-border-subtle`.
+- **Only tokens that exist.** If a colour utility renders as nothing, the token is undefined. Note: `content-danger` does **not** exist — error text is `text-score-down-text`.
+- **Arbitrary values the lint misses.** It only flags brackets containing a unit or hex, so `z-[60]`, `scale-[0.98]` and fractional opacities slip through — they are still banned. Need a z-index above the app shell? Ask.
+- **Launcher cards don't take `selected`.** A card that navigates or starts an action is not a toggle; omit `selected` so it doesn't announce a phantom `aria-pressed`.
 
 ## Primitives
 
 Build / use these as the only UI building blocks (status = built vs to build):
 
-`Modal` ✓ · `Card` · `Stat` · `Badge` · `ResultChip` · `Button` · `SegmentedControl` · `Eyebrow` / `SectionHeader` · `Avatar` · `EmptyState` · `Skeleton` · `EventItem` / `DateBox`
+Built (use these): `Modal` · `Card` · `Stat` · `Badge` · `ResultChip` · `Button` · `Input` · `Field` · `Toggle` · `SegmentedControl` · `OptionButton` · `SelectableCard`
+
+Not yet built (propose, don't inline): `Eyebrow` / `SectionHeader` · `Avatar` · `EmptyState` · `Skeleton` · `EventItem` / `DateBox`
 
 Each new primitive: build in isolation, add every variant to `/dev/ui`, then adopt.
 
@@ -48,8 +69,9 @@ This is a darts scoreboard, not a generic dashboard. The **numeral is the hero**
 
 ## Per-task checklist
 
-1. Does a primitive already cover this? Use it. If not, propose one — don't inline.
-2. Every colour is a semantic token; every size is on the scale.
-3. Stat numbers use `font-display tabular-nums`; throw notation uses `font-mono`.
-4. Run `npm run lint:ui` and resolve new findings before finishing.
-5. Match `ProfilePage.tsx` as the reference style.
+1. **Sweep the whole file** — every hand-rolled button, input, overlay, card, pill or list row becomes a primitive. Leave no bespoke block "because it works".
+2. Does a primitive cover this? Use it. If none fits, **STOP and ask** — don't inline or invent.
+3. Every colour is an existing semantic token; every size is on the scale.
+4. Stat numbers use `font-display tabular-nums`; throw notation uses `font-mono`.
+5. Walk the five "lint can't see these" points above against your diff, one by one.
+6. Run `npm run lint:ui` (0 new findings) and match `ProfilePage.tsx`.

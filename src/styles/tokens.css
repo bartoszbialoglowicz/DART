@@ -1,86 +1,89 @@
-/* ════════════════════════════════════════════════════════════════════
-   DESIGN TOKENS  ·  src/styles/tokens.css
-   Stack: Tailwind v4 (@theme exposes every token as a utility class)
-
-   THREE LAYERS — only the SEMANTIC layer may be used in components:
-     1. RAW palette  (brand-*, ink-*)  → referenced by tokens, NOT used directly
-     2. STATUS        (score-*, rank-*) → dartboard bull colours
-     3. SEMANTIC      (surface-*, content-*, border-*) → THIS is the component API
-
-   Fonts: loaded via @import below. If your bundler reorders @import, move the
-   <link> tags into index.html <head> instead and delete the @import line.
-   ════════════════════════════════════════════════════════════════════ */
-
 @import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
 
+/* ---------------------------------------------------------------------------
+   PALETA TESTOWA "B" — identyczne nazwy tokenów, inne wartości.
+   Kierunek: głęboka zieleń butelkowa (powierzchnie) + magenta (brand) + kość (akcent).
+   Slot "brand-purple" trzyma teraz magentę, slot "brand-amber" — kość słoniową.
+   --------------------------------------------------------------------------- */
+
 @theme {
-  /* ──────────────────────────────────────────────────────────────────
-     LAYER 1 · RAW BRAND PALETTE  (Palette A — Dark)
-     ⚠ MIGRATION: do NOT use brand-* utilities directly in components.
-       They remain exposed only for backward-compat during rollout and
-       will be demoted out of @theme once migration (Phase 3) is done.
-     ────────────────────────────────────────────────────────────────── */
   --color-brand-black:      #000000;
   --color-brand-white:      #ffffff;
-  --color-brand-purple:     #ac58e9;
+  --color-brand-purple:     #d6006e;   /* magenta */
+  --color-brand-amber:      #e9d8a6;   /* kość / parchment */
 
-  --color-brand-purple-50:  #f5eafd;
-  --color-brand-purple-100: #e9d0fb;
-  --color-brand-purple-200: #d3a1f7;
-  --color-brand-purple-300: #bc72f3;
-  --color-brand-purple-400: #ac58e9;
-  --color-brand-purple-500: #9340d4;
-  --color-brand-purple-600: #7a2db8;
-  --color-brand-purple-700: #5f1d99;
-  --color-brand-purple-800: #440f78;
-  --color-brand-purple-900: #2a0654;
+  --color-brand-purple-100: #f7cce2;
+  --color-brand-purple-200: #ef99c5;
+  --color-brand-purple-300: #e666a8;
+  --color-brand-purple-400: #de338b;
+  --color-brand-purple-500: #d6006e;
+  --color-brand-purple-600: #ab0058;
+  --color-brand-purple-700: #800042;
+  --color-brand-purple-800: #56002c;
+  --color-brand-purple-900: #2b0016;
 
-  /* ──────────────────────────────────────────────────────────────────
-     LAYER 1 · INK — neutral surface / text ramp (lifted dark palette)
-     A faint cool tint keeps the dark from reading as a flat void, and
-     the elevation ladder (950 → 850) gives cards real separation.
-     ────────────────────────────────────────────────────────────────── */
-  --color-ink-950: #0B0B0F;   /* app background            */
-  --color-ink-900: #16161D;   /* elevated surface: cards, modal */
-  --color-ink-850: #1F1F28;   /* muted surface: inputs, hover   */
-  --color-ink-700: #2A2A35;   /* visible borders           */
-  --color-ink-500: #5A5A68;   /* disabled / faint text     */
-  --color-ink-300: #A8A6B5;   /* secondary text            */
-  --color-ink-50:  #F4F3F7;   /* primary text (softer than #fff) */
+  --color-brand-amber-100: #fbf7ed;
+  --color-brand-amber-200: #f6efdb;
+  --color-brand-amber-300: #f2e8ca;
+  --color-brand-amber-400: #ede0b8;
+  --color-brand-amber-500: #e9d8a6;
+  --color-brand-amber-600: #baad85;
+  --color-brand-amber-700: #8c8264;
+  --color-brand-amber-800: #5d5642;
+  --color-brand-amber-900: #2f2b21;
 
-  /* ──────────────────────────────────────────────────────────────────
-     LAYER 2 · STATUS — dartboard bull colours
-     up = board green · down = double red · rank = warm highlight (rare)
-     Each: solid (dots/strong) · soft (fill bg) · text (readable on dark)
-     ────────────────────────────────────────────────────────────────── */
-  --color-score-up:        #1FB36B;
-  --color-score-up-soft:   #15281E;
-  --color-score-up-text:   #5FE3A6;
+  /* neutralne rampy — bez zmian (patrz uwaga #1 w notatkach) */
+  --color-brand-black-100: #000000;
+  --color-brand-black-200: #1a1a1a;
+  --color-brand-black-300: #333333;
+  --color-brand-black-400: #4d4d4d;
+  --color-brand-black-500: #666666;
+  --color-brand-black-600: #808080;
+  --color-brand-black-700: #999999;
+  --color-brand-black-800: #b3b3b3;
+  --color-brand-black-900: #cccccc;
 
-  --color-score-down:      #E23B45;
-  --color-score-down-soft: #2A171A;
-  --color-score-down-text: #FF8E94;
+  --color-brand-white-100: #333333;
+  --color-brand-white-200: #4d4d4d;
+  --color-brand-white-300: #666666;
+  --color-brand-white-400: #808080;
+  --color-brand-white-500: #999999;
+  --color-brand-white-600: #b3b3b3;
+  --color-brand-white-700: #cccccc;
+  --color-brand-white-800: #e6e6e6;
+  --color-brand-white-900: #ffffff;
 
-  --color-rank:            #E6A93C;
-  --color-rank-soft:       #28230F;
-  --color-rank-text:       #F4C967;
+  /* ink: było navy-tinted → teraz zieleń butelkowa */
+  --color-ink-950: #04100c;
+  --color-ink-900: #081913;
+  --color-ink-850: #0d2219;
+  --color-ink-700: #16382a;
+  --color-ink-500: #4a6b5c;
+  --color-ink-300: #9bb3a7;
+  --color-ink-50:  #eef3ef;
 
-  /* Accent soft variants (badges, pills, tints) */
-  --color-accent-soft:     #1E1330;
-  --color-accent-text:     #C99BF0;
+  /* semantyka danych: up = jade, down = magenta (brand), rank = kość */
+  --color-score-up:        #39c98d;
+  --color-score-up-soft:   #06231a;
+  --color-score-up-text:   #86e3c2;
 
-  /* ──────────────────────────────────────────────────────────────────
-     LAYER 3 · SEMANTIC — the ONLY tokens components may use
-     ────────────────────────────────────────────────────────────────── */
+  --color-score-down:      #d6006e;
+  --color-score-down-soft: #2b0016;
+  --color-score-down-text: #ff8fc4;
 
-  /* Surfaces (background) */
+  --color-rank:            #e9d8a6;
+  --color-rank-soft:       #2f2b21;
+  --color-rank-text:       #f2e8ca;
+
+  --color-accent-soft:     #2b0016;
+  --color-accent-text:     #ef99c5;
+
   --color-surface-base:    var(--color-ink-950);
   --color-surface-overlay: var(--color-ink-900);
   --color-surface-muted:   var(--color-ink-850);
   --color-surface-accent:  var(--color-brand-purple);
   --color-surface-invert:  var(--color-ink-50);
 
-  /* Content (text / icons) */
   --color-content-primary:   var(--color-ink-50);
   --color-content-secondary: var(--color-ink-300);
   --color-content-faint:     var(--color-ink-500);
@@ -88,17 +91,10 @@
   --color-content-on-accent: var(--color-brand-white);
   --color-content-invert:    var(--color-ink-950);
 
-  /* Borders */
   --color-border-subtle: var(--color-ink-700);
   --color-border-accent: var(--color-brand-purple);
   --color-border-strong: var(--color-ink-50);
 
-  /* ──────────────────────────────────────────────────────────────────
-     TYPOGRAPHY — three roles
-       font-display → scoreboard numerals & headings (Saira Condensed)
-       font-sans    → body / UI default (Inter)
-       font-mono    → throw notation: T20, D16, 180 (JetBrains Mono)
-     ────────────────────────────────────────────────────────────────── */
   --font-display: "Saira Condensed", system-ui, sans-serif;
   --font-sans:    "Inter", system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, monospace;
