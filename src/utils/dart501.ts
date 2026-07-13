@@ -60,10 +60,28 @@ const CHECKOUTS: Record<number, string[]> = {
   170:['T20','T20','BULL'],
 };
 
+/** Returns the standard checkout route for a given value, e.g. 170 → "T20 · T20 · Bull". */
+export function getCheckoutHint(value: number): string | null {
+  if (value === 50) return 'Bull';
+  if (value % 2 === 0 && value >= 2 && value <= 40) return `D${value / 2}`;
+  const co = CHECKOUTS[value];
+  return co ? co.join(' ') : null;
+}
+
 /** Converts a player's 3-dart visit average to the Gaussian throw sigma (mm). */
 export function avgToSigma(average: number): number {
   if (average <= 0 || !isFinite(average)) return 55;
   return (1036.2 / average) - 3.684;
+}
+
+/** Returns a human-readable skill label for a given 3-dart average. */
+export function botLevel(avg: number): string {
+  if (avg >= 90) return 'Pro';
+  if (avg >= 75) return 'Dobry amator';
+  if (avg >= 60) return 'Klub';
+  if (avg >= 45) return 'Średni';
+  if (avg >= 30) return 'Początkujący';
+  return 'Rekreacyjny';
 }
 
 export const SKILL_LEVELS = [
@@ -136,6 +154,20 @@ export function chooseTarget(remaining: number, dartsLeft: number): string {
     return leave >= 1 && leave <= 20 ? String(leave) : '1';
   }
   return 'T20';
+}
+
+export function cpuVisitDoubleAttempt(
+  visit: CpuVisit,
+  remainingBefore: number,
+): import('../types/bracket').DoubleAttempt {
+  const dartsAtDouble = visit.darts.filter(d =>
+    d.target.startsWith('D') || d.target === 'BULL' || d.target === 'BULLSEYE' || d.target === '25'
+  ).length;
+  const isClosing = remainingBefore - visit.totalScored === 0;
+  return {
+    dartsAtDouble,
+    ...(isClosing ? { dartsToClose: visit.darts.length } : {}),
+  };
 }
 
 export function simulateCpuVisit(remaining: number, sigma: number): CpuVisit {

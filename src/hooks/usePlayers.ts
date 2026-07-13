@@ -15,6 +15,7 @@ export function usePlayers(params?: Parameters<typeof playersApi.list>[0]) {
   });
 }
 
+
 export function usePlayer(id: number) {
   return useQuery({
     queryKey: playerKeys.detail(id),
@@ -44,5 +45,19 @@ export function useDeletePlayer() {
   return useMutation({
     mutationFn: (id: number) => playersApi.destroy(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: playerKeys.all() }),
+  });
+}
+
+export function useMyStats() {
+  return useQuery({
+    queryKey: ['players', 'my-stats'],
+    queryFn:  () => playersApi.myStats(),
+  });
+}
+
+export function useMyEvents() {
+  return useQuery({
+    queryKey: ['players', 'my-events'],
+    queryFn:  () => playersApi.myEvents(),
   });
 }

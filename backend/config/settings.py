@@ -29,6 +29,8 @@ INSTALLED_APPS = [
     'players',
     'tournaments',
     'accounts',
+    'leagues',
+    'venues',
 ]
 
 MIDDLEWARE = [
@@ -65,6 +67,20 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        # WAL lets readers and a writer run concurrently instead of blocking
+        # each other; the timeout has writers retry instead of immediately
+        # raising "database is locked". Needed because live-match play (score
+        # entries, leg locks, result saves) fires several near-simultaneous
+        # requests per match, and the same account can have more than one
+        # device open on a tournament at once.
+        'OPTIONS': {
+            'transaction_mode': 'IMMEDIATE',
+            'timeout': 20,
+            'init_command': (
+                'PRAGMA journal_mode=WAL;'
+                'PRAGMA synchronous=NORMAL;'
+            ),
+        },
     }
 }
 

@@ -24,6 +24,10 @@ dist
 dist-ssr
 *.local
 
+# Local artifacts / exports
+dashboard.html
+profil.png
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

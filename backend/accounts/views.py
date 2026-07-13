@@ -7,6 +7,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 
+def _player_id(user):
+    profile = getattr(user, 'player_profile', None)
+    return profile.id if profile else None
+
+
 @api_view(['POST'])
 def register(request):
     username = request.data.get('username', '').strip()
@@ -17,7 +22,7 @@ def register(request):
         return Response({'error': 'Użytkownik o tej nazwie już istnieje.'}, status=400)
     user = User.objects.create_user(username=username, password=password)
     token, _ = Token.objects.get_or_create(user=user)
-    return Response({'token': token.key, 'username': user.username}, status=201)
+    return Response({'token': token.key, 'username': user.username, 'player_id': None}, status=201)
 
 
 @api_view(['POST'])
@@ -28,7 +33,7 @@ def login(request):
     if not user:
         return Response({'error': 'Nieprawidłowy login lub hasło.'}, status=400)
     token, _ = Token.objects.get_or_create(user=user)
-    return Response({'token': token.key, 'username': user.username})
+    return Response({'token': token.key, 'username': user.username, 'player_id': _player_id(user)})
 
 
 @api_view(['POST'])
@@ -43,4 +48,4 @@ def logout(request):
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def me(request):
-    return Response({'username': request.user.username})
+    return Response({'username': request.user.username, 'player_id': _player_id(request.user)})

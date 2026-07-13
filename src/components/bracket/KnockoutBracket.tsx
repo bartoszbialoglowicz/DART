@@ -17,32 +17,38 @@ const CONNECTOR_WIDTH = 48;  // px — space for bracket lines between rounds
 const SLOT_SIZE       = 88;  // px — height allocated per match in round 1
 
 type Props = {
-  rounds:          BracketRound[];
-  playerCount:     number;
-  matchFormat:     MatchFormat;
-  isOwner:         boolean;
-  onSimulate?:     (matchId: string) => void;
-  onEnterResult?:  (matchId: string, topScore: number, bottomScore: number) => void;
+  rounds:         BracketRound[];
+  matchFormat:    MatchFormat;
+  isOwner:        boolean;
+  avgByName?:     Map<string, number>;
+  onSimulate?:    (matchId: string) => void;
+  onEnterResult?: (matchId: string, topScore: number, bottomScore: number) => void;
 };
 
-export function KnockoutBracket({ rounds, playerCount, matchFormat, isOwner, onSimulate, onEnterResult }: Props) {
-  const totalHeight = playerCount * SLOT_SIZE;
+export function KnockoutBracket({ rounds, matchFormat, isOwner, avgByName, onSimulate, onEnterResult }: Props) {
+  // Height is derived from first-round match count to accommodate byes in non-power-of-2 brackets.
+  const totalHeight = (rounds[0]?.matches.length ?? 1) * 2 * SLOT_SIZE;
 
   return (
     <div className="overflow-auto p-8">
       {/* Round labels row */}
       <div className="mb-4 flex">
-        {rounds.map((round, i) => (
-          <Fragment key={round.id}>
-            <div
-              className="text-center text-xs font-semibold tracking-widest text-brand-purple uppercase"
-              style={{ width: ROUND_WIDTH }}
-            >
-              {round.label}
-            </div>
-            {i < rounds.length - 1 && <div style={{ width: CONNECTOR_WIDTH }} />}
-          </Fragment>
-        ))}
+        {rounds.map((round, i) => {
+          const roundFormat = round.matchFormat ?? matchFormat;
+          return (
+            <Fragment key={round.id}>
+              <div className="text-center" style={{ width: ROUND_WIDTH }}>
+                <p className="text-xs font-semibold uppercase tracking-widest text-content-accent">
+                  {round.label}
+                </p>
+                <p className="mt-0.5 text-xs text-content-secondary">
+                  BO{roundFormat.sets} set · BO{roundFormat.legs} leg
+                </p>
+              </div>
+              {i < rounds.length - 1 && <div style={{ width: CONNECTOR_WIDTH }} />}
+            </Fragment>
+          );
+        })}
       </div>
 
       {/* Bracket body */}
@@ -55,7 +61,7 @@ export function KnockoutBracket({ rounds, playerCount, matchFormat, isOwner, onS
               style={{ width: ROUND_WIDTH, height: totalHeight, justifyContent: 'space-around' }}
             >
               {round.matches.map(match => (
-                <MatchCard key={match.id} match={match} matchFormat={matchFormat} isOwner={isOwner} onSimulate={onSimulate} onEnterResult={onEnterResult} />
+                <MatchCard key={match.id} match={match} matchFormat={round.matchFormat ?? matchFormat} isOwner={isOwner} avgByName={avgByName} onSimulate={onSimulate} onEnterResult={onEnterResult} />
               ))}
             </div>
 
@@ -109,12 +115,12 @@ function ConnectorColumn({ matchCount, totalHeight }: ConnectorProps) {
 
 function HLine({ y, left, width }: { y: number; left: number; width: number }) {
   return (
-    <div className="absolute bg-brand-purple-800" style={{ top: y - 1, left, width, height: 2 }} />
+    <div className="absolute bg-border-subtle" style={{ top: y - 1, left, width, height: 2 }} />
   );
 }
 
 function VLine({ x, from, to }: { x: number; from: number; to: number }) {
   return (
-    <div className="absolute bg-brand-purple-800" style={{ top: from, left: x, width: 2, height: to - from }} />
+    <div className="absolute bg-border-subtle" style={{ top: from, left: x, width: 2, height: to - from }} />
   );
 }

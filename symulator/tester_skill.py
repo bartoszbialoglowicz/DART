@@ -264,14 +264,42 @@ def play_501(sigma: float, rng: random.Random | None = None,
 
 # === Demo ===
 
+import statistics
+
 if __name__ == "__main__":
 
-    # Silent benchmark across skill levels
-    print("\n=== 1000 legów na poziom (cichy benchmark) ===")
-    print(f"{'skill':<12} {'σ':>4} {'śr. lotek':>10} {'śr. 3-lotki':>13}")
+    BIN_STEP = 2
+
+    # Single simulation pass — reuse results for all output sections
+    all_legs: dict[str, list[dict]] = {}
     for name, s in SKILL_LEVELS.items():
-        legs = [play_501(s, rng=random.Random(i), verbose=False, max_darts=300)
-                for i in range(1000)]
-        avg_darts = sum(l["darts"] for l in legs) / len(legs)
-        avg_3 = sum(l["avg_per_3_darts"] for l in legs) / len(legs)
-        print(f"{name:<12} {s:>4} {avg_darts:>10.1f} {avg_3:>13.1f}")
+        all_legs[name] = [
+            play_501(s, rng=random.Random(i), verbose=False, max_darts=300)
+            for i in range(1000)
+        ]
+
+    # ── Summary table ────────────────────────────────────────────────────────
+    print("\n=== 1000 legów na poziom ===")
+    print(f"{'skill':<12} {'σ':>4} {'med. lotek':>10} {'med. 3-lotki':>13}")
+    for name, s in SKILL_LEVELS.items():
+        legs = all_legs[name]
+        med_darts = statistics.median(l["darts"]            for l in legs)
+        med_3     = statistics.median(l["avg_per_3_darts"]  for l in legs)
+        print(f"{name:<12} {s:>4} {med_darts:>10.1f} {med_3:>13.1f}")
+
+    # ── Rozkład średniej na leg (pułapy co 2 pkt) ────────────────────────────
+    print("\n=== Rozkład średniej na leg (pułapy co 2 pkt) ===")
+    for name, s in SKILL_LEVELS.items():
+        legs = all_legs[name]
+        n    = len(legs)
+
+        counts: dict[float, int] = {}
+        for leg in legs:
+            lo = (leg["avg_per_3_darts"] // BIN_STEP) * BIN_STEP
+            counts[lo] = counts.get(lo, 0) + 1
+
+        print(f"\n{name} (σ={s})")
+        for lo in sorted(counts):
+            pct = counts[lo] / n * 100
+            bar = "▓" * round(pct / 2)   # 1 char ≈ 2 %
+            print(f"  [{lo:>4.0f}, {lo + BIN_STEP:<4.0f})  {pct:5.1f}%  {bar}")

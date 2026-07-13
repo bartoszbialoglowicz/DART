@@ -1,17 +1,20 @@
-import type { BracketData, BracketMatch, BracketRound, CurrentLeg, Group, GroupsBracketData, LegRecord, MatchResult, MatchSlot } from '../types/bracket';
-import type { Player } from '../types/player';
-import type { TournamentConfig } from '../types/tournament';
+import type { BracketData, BracketMatch, BracketRound, Group, GroupsBracketData, MatchResult, MatchSlot } from '../types/bracket';
+import type { PhaseConfig, TournamentConfig, TournamentPlayer } from '../types/tournament';
 import { avgToSigma } from './dart501';
 
-const ROUND_LABELS_FROM_END: Record<number, string> = {
+export const ROUND_LABELS_FROM_END: Record<number, string> = {
   0: 'Finał',
   1: 'Półfinał',
   2: 'Ćwierćfinał',
 };
 
-function roundLabel(index: number, total: number): string {
+export function roundLabel(index: number, total: number): string {
   const fromEnd = total - 1 - index;
   return ROUND_LABELS_FROM_END[fromEnd] ?? `Runda ${index + 1}`;
+}
+
+export function nextPowerOf2(n: number): number {
+  return Math.pow(2, Math.ceil(Math.log2(Math.max(n, 2))));
 }
 
 function shuffle<T>(arr: readonly T[]): T[] {
@@ -23,12 +26,12 @@ function shuffle<T>(arr: readonly T[]): T[] {
   return a;
 }
 
-function playerSlot(player: Player | undefined): MatchSlot {
+function playerSlot(player: TournamentPlayer | undefined): MatchSlot {
   if (!player) return { playerId: null, playerName: null, playerAvg: null, isCpu: false };
   const avg = parseFloat(player.average);
   return {
     playerId:   player.id,
-    playerName: `${player.first_name} ${player.last_name}`,
+    playerName: [player.first_name, player.last_name].filter(Boolean).join(' '),
     playerAvg:  avg,
     isCpu:      player.cpu,
     ...(player.cpu ? { cpuSigma: avgToSigma(avg) } : {}),
@@ -41,16 +44,24 @@ function emptySlot(): MatchSlot {
 
 // ── Knockout ──────────────────────────────────────────────────────────────────
 
-function generateKnockoutRounds(playerCount: number, players: Player[]): BracketRound[] {
+function generateKnockoutRounds(
+  players: TournamentPlayer[],
+  phaseConfigs: Record<string, PhaseConfig>,
+): BracketRound[] {
   const seeded = shuffle(players);
-  const numRounds = Math.log2(playerCount);
+  const bracketSize = nextPowerOf2(players.length);
+  const numRounds   = Math.log2(bracketSize);
   return Array.from({ length: numRounds }, (_, roundIndex) => {
-    const matchCount = playerCount / Math.pow(2, roundIndex + 1);
+    const matchCount = bracketSize / Math.pow(2, roundIndex + 1);
+    const roundId    = `round-${roundIndex}`;
+    const pc         = phaseConfigs[roundId];
     return {
-      id: `round-${roundIndex}`,
+      id:    roundId,
       label: roundLabel(roundIndex, numRounds),
+      ...(pc?.date        && { date:        pc.date }),
+      ...(pc?.matchFormat && { matchFormat: pc.matchFormat }),
       matches: Array.from({ length: matchCount }, (_, matchIndex) => ({
-        id: `r${roundIndex}-m${matchIndex}`,
+        id:     `r${roundIndex}-m${matchIndex}`,
         top:    roundIndex === 0 ? playerSlot(seeded[matchIndex * 2])     : emptySlot(),
         bottom: roundIndex === 0 ? playerSlot(seeded[matchIndex * 2 + 1]) : emptySlot(),
       })),
@@ -86,63 +97,61 @@ export function applyResult(b: KnockoutBracket, matchId: string, result: MatchRe
   return { ...b, rounds: applyResultInRounds(b.rounds, matchId, result) };
 }
 
-export function setMatchLegs(b: KnockoutBracket, matchId: string, legs: LegRecord[]): KnockoutBracket {
-  const [rPart, mPart] = matchId.split('-');
-  const roundIndex = parseInt(rPart.slice(1));
-  const matchIndex = parseInt(mPart.slice(1));
-  return {
-    ...b,
-    rounds: b.rounds.map((round, ri) =>
-      ri !== roundIndex ? round : {
-        ...round,
-        matches: round.matches.map((m, mi) => mi === matchIndex ? { ...m, legs } : m),
-      }
-    ),
-  };
-}
-
-export function setMatchCurrentLeg(b: KnockoutBracket, matchId: string, currentLeg: CurrentLeg | null): KnockoutBracket {
-  const [rPart, mPart] = matchId.split('-');
-  const roundIndex = parseInt(rPart.slice(1));
-  const matchIndex = parseInt(mPart.slice(1));
-  return {
-    ...b,
-    rounds: b.rounds.map((round, ri) =>
-      ri !== roundIndex ? round : {
-        ...round,
-        matches: round.matches.map((m, mi) =>
-          mi !== matchIndex ? m : { ...m, currentLeg: currentLeg ?? undefined }
-        ),
-      }
-    ),
-  };
-}
 
 // ── Groups ────────────────────────────────────────────────────────────────────
 
+/**
+ * Predefined match order per group size — interleaved so no player plays
+ * back-to-back more than once (impossible to fully avoid for 3-player groups).
+ *
+ * Indices are 0-based positions within the valid slots array.
+ * 3 players:  1-3, 2-3, 1-2
+ * 4 players:  1-3, 2-4, 1-4, 2-3, 1-2, 3-4
+ * 5 players:  hand-crafted schedule with maximal spacing
+ */
+const GROUP_MATCH_ORDER: Record<number, [number, number][]> = {
+  3: [[0,2],[1,2],[0,1]],
+  4: [[0,2],[1,3],[0,3],[1,2],[0,1],[2,3]],
+  5: [[0,2],[1,3],[0,4],[2,3],[1,4],[0,3],[2,4],[0,1],[3,4],[1,2]],
+};
+
 function generateGroupMatches(groupId: string, slots: MatchSlot[]): BracketMatch[] {
   const valid = slots.filter(s => s.playerId !== null);
+  const n     = valid.length;
+  const order = GROUP_MATCH_ORDER[n];
+
+  if (order) {
+    return order.map(([i, j], idx) => ({
+      id:     `${groupId}-m${idx}`,
+      top:    valid[i],
+      bottom: valid[j],
+    }));
+  }
+
+  // Fallback for unexpected group sizes — plain round-robin
   const matches: BracketMatch[] = [];
   let idx = 0;
-  for (let i = 0; i < valid.length - 1; i++) {
-    for (let j = i + 1; j < valid.length; j++) {
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = i + 1; j < n; j++) {
       matches.push({ id: `${groupId}-m${idx++}`, top: valid[i], bottom: valid[j] });
     }
   }
   return matches;
 }
 
-function generateGroups(playerCount: number, players: Player[]): Group[] {
-  const seeded = shuffle(players);
-  const groupSize = 4;
-  const groupCount = Math.ceil(playerCount / groupSize);
+function generateGroups(players: TournamentPlayer[], groupSize: number, boardCount?: number | null): Group[] {
+  const seeded     = shuffle(players);
+  const groupCount = Math.max(1, Math.ceil(players.length / groupSize));
   return Array.from({ length: groupCount }, (_, i) => {
-    const slots = Array.from({ length: groupSize }, (_, j) => playerSlot(seeded[i * groupSize + j]));
+    const groupPlayers = seeded.slice(i * groupSize, (i + 1) * groupSize);
+    const slots = Array.from({ length: groupSize }, (_, j) => playerSlot(groupPlayers[j]));
+    const board = boardCount ? (i % boardCount) + 1 : undefined;
     return {
-      id: `group-${i}`,
-      label: String.fromCharCode(65 + i),
+      id:      `group-${i}`,
+      label:   String.fromCharCode(65 + i),
       slots,
       matches: generateGroupMatches(`group-${i}`, slots),
+      ...(board !== undefined && { board }),
     };
   });
 }
@@ -201,7 +210,10 @@ export function applyGroupMatchResult(b: GroupsBracketData, groupId: string, mat
   };
 }
 
-export function generatePlayoffFromGroups(groups: Group[]): BracketRound[] {
+export function generatePlayoffFromGroups(
+  groups: Group[],
+  phaseConfigs: Record<string, PhaseConfig> = {},
+): BracketRound[] {
   const n = groups.length;
   const standings = groups.map(computeGroupStandings);
 
@@ -213,17 +225,21 @@ export function generatePlayoffFromGroups(groups: Group[]): BracketRound[] {
   }
 
   // Pad to next power of 2
-  const bracketSize = Math.pow(2, Math.ceil(Math.log2(Math.max(seeds.length, 2))));
+  const bracketSize = nextPowerOf2(Math.max(seeds.length, 2));
   while (seeds.length < bracketSize) seeds.push(emptySlot());
 
   const numRounds = Math.log2(bracketSize);
   return Array.from({ length: numRounds }, (_, ri) => {
     const matchCount = bracketSize / Math.pow(2, ri + 1);
+    const roundId    = `r${ri}`;
+    const pc         = phaseConfigs[roundId];
     return {
-      id: `r${ri}`,
+      id:    roundId,
       label: roundLabel(ri, numRounds),
+      ...(pc?.date        && { date:        pc.date }),
+      ...(pc?.matchFormat && { matchFormat: pc.matchFormat }),
       matches: Array.from({ length: matchCount }, (_, mi) => ({
-        id: `r${ri}-m${mi}`,
+        id:     `r${ri}-m${mi}`,
         top:    ri === 0 ? seeds[mi * 2]     : emptySlot(),
         bottom: ri === 0 ? seeds[mi * 2 + 1] : emptySlot(),
       })),
@@ -231,31 +247,6 @@ export function generatePlayoffFromGroups(groups: Group[]): BracketRound[] {
   });
 }
 
-export function setGroupMatchLegs(b: GroupsBracketData, groupId: string, matchId: string, legs: LegRecord[]): GroupsBracketData {
-  return {
-    ...b,
-    groups: b.groups.map(g =>
-      g.id !== groupId ? g : {
-        ...g,
-        matches: (g.matches ?? []).map(m => m.id === matchId ? { ...m, legs } : m),
-      }
-    ),
-  };
-}
-
-export function setGroupMatchCurrentLeg(b: GroupsBracketData, groupId: string, matchId: string, currentLeg: CurrentLeg | null): GroupsBracketData {
-  return {
-    ...b,
-    groups: b.groups.map(g =>
-      g.id !== groupId ? g : {
-        ...g,
-        matches: (g.matches ?? []).map(m =>
-          m.id !== matchId ? m : { ...m, currentLeg: currentLeg ?? undefined }
-        ),
-      }
-    ),
-  };
-}
 
 export function applyPlayoffResult(b: GroupsBracketData, matchId: string, result: MatchResult): GroupsBracketData {
   if (!b.playoff) return b;
@@ -265,20 +256,32 @@ export function applyPlayoffResult(b: GroupsBracketData, matchId: string, result
 // ── Generator ─────────────────────────────────────────────────────────────────
 
 export function generateBracket(config: TournamentConfig): BracketData {
+  const playerCount   = config.players.length;
+  const phaseConfigs  = config.phaseConfigs ?? {};
+  const hasPhases     = Object.keys(phaseConfigs).length > 0;
+
   if (config.format === 'knockout') {
     return {
-      format: 'knockout',
-      name: config.name,
-      playerCount: config.playerCount,
+      format:      'knockout',
+      name:        config.name,
+      playerCount,
       matchFormat: config.matchFormat,
-      rounds: generateKnockoutRounds(config.playerCount, config.players),
+      ...(hasPhases && { phaseConfigs }),
+      rounds: generateKnockoutRounds(config.players, phaseConfigs),
     };
   }
+
+  // groups — use group-stage format if configured, otherwise default
+  const groupPhaseFormat = phaseConfigs['groups']?.matchFormat ?? config.matchFormat;
+  const boardCount = config.venue_board_count ?? null;
+
   return {
-    format: 'groups',
-    name: config.name,
-    playerCount: config.playerCount,
-    matchFormat: config.matchFormat,
-    groups: generateGroups(config.playerCount, config.players),
+    format:      'groups',
+    name:        config.name,
+    playerCount,
+    matchFormat: groupPhaseFormat,
+    ...(hasPhases   && { phaseConfigs }),
+    ...(boardCount  && { board_count: boardCount }),
+    groups: generateGroups(config.players, config.groupSize, boardCount),
   };
 }

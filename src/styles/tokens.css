@@ -1,46 +1,101 @@
-/*
- * Design Tokens — Stratos Consulting palette
- * Source: brand palette (Black / Vibe Purple / White)
- *
- * Tailwind v4 @theme block exposes every token as a utility class:
- *   --color-brand-*  →  bg-brand-*, text-brand-*, border-brand-*, …
- *   --color-surface-* →  bg-surface-*, …
- *   --color-content-* →  text-content-*, …
- */
+@import url('https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap');
+
+/* ---------------------------------------------------------------------------
+   PALETA TESTOWA "B" — identyczne nazwy tokenów, inne wartości.
+   Kierunek: głęboka zieleń butelkowa (powierzchnie) + magenta (brand) + kość (akcent).
+   Slot "brand-purple" trzyma teraz magentę, slot "brand-amber" — kość słoniową.
+   --------------------------------------------------------------------------- */
 
 @theme {
-  /* ─── Brand primitives ──────────────────────────────────────────── */
-  --color-brand-black:        #000000;
-  --color-brand-purple:       #ac58e9;
-  --color-brand-white:        #ffffff;
+  --color-brand-black:      #000000;
+  --color-brand-white:      #ffffff;
+  --color-brand-purple:     #d6006e;   /* magenta */
+  --color-brand-amber:      #e9d8a6;   /* kość / parchment */
 
-  /* ─── Purple tonal scale (derived, for hover/disabled/glow states) */
-  --color-brand-purple-50:    #f5eafd;
-  --color-brand-purple-100:   #e9d0fb;
-  --color-brand-purple-200:   #d3a1f7;
-  --color-brand-purple-300:   #bc72f3;
-  --color-brand-purple-400:   #ac58e9; /* ← base */
-  --color-brand-purple-500:   #9340d4;
-  --color-brand-purple-600:   #7a2db8;
-  --color-brand-purple-700:   #5f1d99;
-  --color-brand-purple-800:   #440f78;
-  --color-brand-purple-900:   #2a0654;
+  --color-brand-purple-100: #f7cce2;
+  --color-brand-purple-200: #ef99c5;
+  --color-brand-purple-300: #e666a8;
+  --color-brand-purple-400: #de338b;
+  --color-brand-purple-500: #d6006e;
+  --color-brand-purple-600: #ab0058;
+  --color-brand-purple-700: #800042;
+  --color-brand-purple-800: #56002c;
+  --color-brand-purple-900: #2b0016;
 
-  /* ─── Semantic surface tokens ───────────────────────────────────── */
-  --color-surface-base:       var(--color-brand-black);
-  --color-surface-overlay:    #0d0d0d;   /* cards / panels on black */
-  --color-surface-accent:     var(--color-brand-purple);
-  --color-surface-invert:     var(--color-brand-white);
+  --color-brand-amber-100: #fbf7ed;
+  --color-brand-amber-200: #f6efdb;
+  --color-brand-amber-300: #f2e8ca;
+  --color-brand-amber-400: #ede0b8;
+  --color-brand-amber-500: #e9d8a6;
+  --color-brand-amber-600: #baad85;
+  --color-brand-amber-700: #8c8264;
+  --color-brand-amber-800: #5d5642;
+  --color-brand-amber-900: #2f2b21;
 
-  /* ─── Semantic content (text) tokens ───────────────────────────── */
-  --color-content-primary:    var(--color-brand-white);
-  --color-content-secondary:  #a3a3a3;   /* muted on dark bg */
-  --color-content-accent:     var(--color-brand-purple);
-  --color-content-on-accent:  var(--color-brand-white);
-  --color-content-invert:     var(--color-brand-black);
+  /* neutralne rampy — bez zmian (patrz uwaga #1 w notatkach) */
+  --color-brand-black-100: #000000;
+  --color-brand-black-200: #1a1a1a;
+  --color-brand-black-300: #333333;
+  --color-brand-black-400: #4d4d4d;
+  --color-brand-black-500: #666666;
+  --color-brand-black-600: #808080;
+  --color-brand-black-700: #999999;
+  --color-brand-black-800: #b3b3b3;
+  --color-brand-black-900: #cccccc;
 
-  /* ─── Semantic border tokens ────────────────────────────────────── */
-  --color-border-subtle:      #1f1f1f;
-  --color-border-accent:      var(--color-brand-purple);
-  --color-border-strong:      var(--color-brand-white);
+  --color-brand-white-100: #333333;
+  --color-brand-white-200: #4d4d4d;
+  --color-brand-white-300: #666666;
+  --color-brand-white-400: #808080;
+  --color-brand-white-500: #999999;
+  --color-brand-white-600: #b3b3b3;
+  --color-brand-white-700: #cccccc;
+  --color-brand-white-800: #e6e6e6;
+  --color-brand-white-900: #ffffff;
+
+  /* ink: było navy-tinted → teraz zieleń butelkowa */
+  --color-ink-950: #04100c;
+  --color-ink-900: #081913;
+  --color-ink-850: #0d2219;
+  --color-ink-700: #16382a;
+  --color-ink-500: #4a6b5c;
+  --color-ink-300: #9bb3a7;
+  --color-ink-50:  #eef3ef;
+
+  /* semantyka danych: up = jade, down = magenta (brand), rank = kość */
+  --color-score-up:        #39c98d;
+  --color-score-up-soft:   #06231a;
+  --color-score-up-text:   #86e3c2;
+
+  --color-score-down:      #d6006e;
+  --color-score-down-soft: #2b0016;
+  --color-score-down-text: #ff8fc4;
+
+  --color-rank:            #e9d8a6;
+  --color-rank-soft:       #2f2b21;
+  --color-rank-text:       #f2e8ca;
+
+  --color-accent-soft:     #2b0016;
+  --color-accent-text:     #ef99c5;
+
+  --color-surface-base:    var(--color-ink-950);
+  --color-surface-overlay: var(--color-ink-900);
+  --color-surface-muted:   var(--color-ink-850);
+  --color-surface-accent:  var(--color-brand-purple);
+  --color-surface-invert:  var(--color-ink-50);
+
+  --color-content-primary:   var(--color-ink-50);
+  --color-content-secondary: var(--color-ink-300);
+  --color-content-faint:     var(--color-ink-500);
+  --color-content-accent:    var(--color-brand-purple);
+  --color-content-on-accent: var(--color-brand-white);
+  --color-content-invert:    var(--color-ink-950);
+
+  --color-border-subtle: var(--color-ink-700);
+  --color-border-accent: var(--color-brand-purple);
+  --color-border-strong: var(--color-ink-50);
+
+  --font-display: "Saira Condensed", system-ui, sans-serif;
+  --font-sans:    "Inter", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, monospace;
 }
