@@ -4,24 +4,31 @@ from .models import League, LeagueMember, LeagueMatch
 
 class LeagueMemberSerializer(serializers.ModelSerializer):
     player_id = serializers.IntegerField(source='player.id', read_only=True, default=None)
+    is_cpu    = serializers.BooleanField(source='player.cpu', read_only=True, default=False)
 
     class Meta:
         model  = LeagueMember
-        fields = ['id', 'player_id', 'display_name', 'status', 'joined_at']
-        read_only_fields = ['id', 'player_id', 'joined_at']
+        fields = ['id', 'player_id', 'is_cpu', 'display_name', 'status', 'joined_at']
+        read_only_fields = ['id', 'player_id', 'is_cpu', 'joined_at']
 
 
 class LeagueMatchSerializer(serializers.ModelSerializer):
-    home_name = serializers.CharField(source='home.display_name', read_only=True)
-    away_name = serializers.CharField(source='away.display_name', read_only=True)
+    home_name           = serializers.CharField(source='home.display_name', read_only=True)
+    away_name           = serializers.CharField(source='away.display_name', read_only=True)
+    submitted_by_username = serializers.CharField(source='submitted_by.username', read_only=True, default=None)
 
     class Meta:
         model  = LeagueMatch
         fields = [
             'id', 'matchday', 'home', 'away', 'home_name', 'away_name',
             'scheduled_at', 'status', 'home_score', 'away_score', 'played_at',
+            'submitted_by_username',
+            'home_count_180', 'away_count_180',
+            'home_high_checkouts', 'away_high_checkouts',
+            'home_short_legs', 'away_short_legs',
+            'legs', 'current_leg',
         ]
-        read_only_fields = ['id', 'home_name', 'away_name']
+        read_only_fields = ['id', 'home_name', 'away_name', 'submitted_by_username']
 
 
 class LeagueSerializer(serializers.ModelSerializer):

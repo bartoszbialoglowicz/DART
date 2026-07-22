@@ -10,6 +10,7 @@ import { TournamentsPage } from './pages/TournamentsPage';
 import { TournamentPage } from './pages/TournamentPage';
 import { TournamentSetupPage } from './pages/TournamentSetupPage';
 import { LiveMatchPage } from './pages/LiveMatchPage';
+import { LeagueLiveMatchPage } from './pages/LeagueLiveMatchPage';
 import { RankingPage } from './pages/RankingPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { LeaguesPage } from './pages/LeaguesPage';
@@ -22,6 +23,10 @@ const router = createBrowserRouter([
   {
     path: '/turnieje/:id/live/:matchId',
     element: <LiveMatchPage />,
+  },
+  {
+    path: '/ligi/:id/live/:matchId',
+    element: <LeagueLiveMatchPage />,
   },
   {
     path: '/',

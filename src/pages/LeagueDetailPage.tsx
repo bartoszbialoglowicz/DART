@@ -118,6 +118,7 @@ export function LeagueDetailPage() {
                 <ScheduleTab
                   leagueId={leagueId}
                   matches={schedule}
+                  members={league.members}
                   scoreLabel={scoreLabel}
                   isDraft={isDraft}
                   matchCount={league.match_count}
@@ -159,6 +160,7 @@ export function LeagueDetailPage() {
             <ScheduleTab
               leagueId={leagueId}
               matches={schedule}
+              members={league.members}
               scoreLabel={scoreLabel}
               isDraft={isDraft}
               matchCount={league.match_count}

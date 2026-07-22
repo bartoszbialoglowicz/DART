@@ -269,28 +269,79 @@ class LeagueViewSet(viewsets.ModelViewSet):
 
     # ── Match result ─────────────────────────────────────────────────────────
 
-    @action(detail=True, methods=['patch'], url_path=r'matches/(?P<match_id>\d+)')
-    def update_match(self, request, pk=None, match_id=None):
-        league = self.get_object()
+    def _get_match_and_check_permission(self, league, match_id, request):
+        """Shared by update_match/approve/update_match_leg: owner or either
+        participant may act; returns (match, is_owner) or a Response on 403/404."""
         try:
             match = league.matches.get(pk=match_id)
         except LeagueMatch.DoesNotExist:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+            return None, Response(status=status.HTTP_404_NOT_FOUND)
 
-        if league.owner != request.user:
+        is_owner = league.owner == request.user
+        if not is_owner:
             player = getattr(request.user, 'player_profile', None)
             member_id = (
                 league.members.filter(player=player).values_list('id', flat=True).first()
             ) if player else None
             if member_id not in {match.home_id, match.away_id}:
-                return Response({'detail': 'Brak uprawnień.'}, status=status.HTTP_403_FORBIDDEN)
+                return None, Response({'detail': 'Brak uprawnień.'}, status=status.HTTP_403_FORBIDDEN)
+
+        return (match, is_owner), None
+
+    @action(detail=True, methods=['patch'], url_path=r'matches/(?P<match_id>\d+)')
+    def update_match(self, request, pk=None, match_id=None):
+        league = self.get_object()
+        found, error = self._get_match_and_check_permission(league, match_id, request)
+        if error:
+            return error
+        match, is_owner = found
 
         serializer = LeagueMatchSerializer(match, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
         if 'home_score' in request.data or 'away_score' in request.data:
-            serializer.save(status='finished', played_at=timezone.now())
+            # Owner's submission is final immediately; anyone else's goes to
+            # the owner for review first — same rule for a manual score entry
+            # and a result produced by playing the match live (both funnel
+            # through this endpoint).
+            serializer.save(
+                status='finished' if is_owner else 'awaiting_approval',
+                played_at=timezone.now(),
+                submitted_by=request.user,
+            )
         else:
             serializer.save()
 
         return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path=r'matches/(?P<match_id>\d+)/approve')
+    def approve_match(self, request, pk=None, match_id=None):
+        league = self.get_object()
+        if league.owner != request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        try:
+            match = league.matches.get(pk=match_id)
+        except LeagueMatch.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        if match.status != 'awaiting_approval':
+            return Response(
+                {'detail': 'Mecz nie oczekuje na akceptację.'}, status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        match.status = 'finished'
+        match.save(update_fields=['status'])
+        return Response(LeagueMatchSerializer(match).data)
+
+    @action(detail=True, methods=['patch'], url_path=r'matches/(?P<match_id>\d+)/leg')
+    def update_match_leg(self, request, pk=None, match_id=None):
+        league = self.get_object()
+        found, error = self._get_match_and_check_permission(league, match_id, request)
+        if error:
+            return error
+        match, _is_owner = found
+
+        match.legs = request.data.get('legs', [])
+        match.current_leg = request.data.get('currentLeg')
+        match.save(update_fields=['legs', 'current_leg'])
+        return Response({'match_id': match.id, 'legs': match.legs, 'currentLeg': match.current_leg})

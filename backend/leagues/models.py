@@ -63,7 +63,11 @@ class LeagueMember(models.Model):
 
 
 class LeagueMatch(models.Model):
-    STATUS_CHOICES = [('pending', 'Oczekuje'), ('finished', 'Zakończony')]
+    STATUS_CHOICES = [
+        ('pending', 'Oczekuje'),
+        ('awaiting_approval', 'Do akceptacji'),
+        ('finished', 'Zakończony'),
+    ]
 
     league       = models.ForeignKey(League, on_delete=models.CASCADE, related_name='matches')
     home         = models.ForeignKey(LeagueMember, on_delete=models.CASCADE, related_name='home_matches')
@@ -74,6 +78,32 @@ class LeagueMatch(models.Model):
     home_score   = models.PositiveIntegerField(null=True, blank=True)
     away_score   = models.PositiveIntegerField(null=True, blank=True)
     played_at    = models.DateTimeField(null=True, blank=True)
+
+    # Who last submitted the score currently sitting on this row — used to
+    # decide finished-vs-awaiting_approval on submit, and shown to the owner
+    # as "zgłoszone przez X" while a result is awaiting approval.
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+
+    # Per-side match stats, entered manually (or computed from live-play legs)
+    # alongside the score — same granularity as tournaments.MatchStatistic.
+    home_count_180        = models.PositiveIntegerField(default=0)
+    away_count_180        = models.PositiveIntegerField(default=0)
+    home_high_checkouts   = models.PositiveIntegerField(default=0)
+    away_high_checkouts   = models.PositiveIntegerField(default=0)
+    home_short_legs       = models.PositiveIntegerField(default=0)
+    away_short_legs       = models.PositiveIntegerField(default=0)
+
+    # Leg-by-leg live-play state, same shape as tournaments.MatchLeg — no
+    # separate model needed since LeagueMatch is already a plain row (not
+    # JSON embedded in a bracket like tournament matches are).
+    legs        = models.JSONField(default=list, blank=True)
+    current_leg = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ['matchday', 'id']

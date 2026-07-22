@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { leaguesApi } from '../api/leagues';
-import type { LeaguePayload } from '../types/league';
+import type { LeagueMatchStats, LeaguePayload } from '../types/league';
+import type { CurrentLeg, LegRecord } from '../types/bracket';
 
 export const leagueKeys = {
   all:       ()           => ['leagues']                     as const,
@@ -118,11 +119,34 @@ export function useUpdateMatch(leagueId: number) {
   return useMutation({
     mutationFn: ({ matchId, data }: {
       matchId: number;
-      data: { home_score?: number; away_score?: number; scheduled_at?: string };
+      data: Partial<LeagueMatchStats> & { home_score?: number; away_score?: number; scheduled_at?: string };
     }) => leaguesApi.updateMatch(leagueId, matchId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: leagueKeys.schedule(leagueId) });
       qc.invalidateQueries({ queryKey: leagueKeys.standings(leagueId) });
+    },
+  });
+}
+
+export function useApproveMatch(leagueId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (matchId: number) => leaguesApi.approveMatch(leagueId, matchId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: leagueKeys.schedule(leagueId) });
+      qc.invalidateQueries({ queryKey: leagueKeys.standings(leagueId) });
+    },
+  });
+}
+
+export function useUpdateLeagueMatchLeg(leagueId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ matchId, legs, currentLeg }: {
+      matchId: number; legs: LegRecord[]; currentLeg: CurrentLeg | null;
+    }) => leaguesApi.updateMatchLeg(leagueId, matchId, legs, currentLeg),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: leagueKeys.schedule(leagueId) });
     },
   });
 }

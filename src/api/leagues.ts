@@ -3,10 +3,12 @@ import type {
   League,
   LeagueListItem,
   LeagueMatch,
+  LeagueMatchStats,
   LeagueMember,
   LeaguePayload,
   StandingsRow,
 } from '../types/league';
+import type { CurrentLeg, LegRecord } from '../types/bracket';
 
 interface Paginated<T> { count: number; results: T[] }
 
@@ -57,8 +59,20 @@ export const leaguesApi = {
     return client.delete(`/leagues/${id}/schedule/`);
   },
 
-  updateMatch(id: number, matchId: number, data: { home_score?: number; away_score?: number; scheduled_at?: string }) {
+  updateMatch(id: number, matchId: number, data: Partial<LeagueMatchStats> & {
+    home_score?: number; away_score?: number; scheduled_at?: string;
+  }) {
     return client.patch<LeagueMatch>(`/leagues/${id}/matches/${matchId}/`, data);
+  },
+
+  approveMatch(id: number, matchId: number) {
+    return client.post<LeagueMatch>(`/leagues/${id}/matches/${matchId}/approve/`, {});
+  },
+
+  updateMatchLeg(id: number, matchId: number, legs: LegRecord[], currentLeg: CurrentLeg | null) {
+    return client.patch<{ match_id: number; legs: LegRecord[]; currentLeg: CurrentLeg | null }>(
+      `/leagues/${id}/matches/${matchId}/leg/`, { legs, currentLeg },
+    );
   },
 
   setMatchdayDate(id: number, matchday: number, date: string | null) {

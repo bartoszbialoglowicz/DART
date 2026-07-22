@@ -5,15 +5,19 @@ import {
   useUpdateMatch,
   useSetMatchdayDate,
 } from '../../hooks/useLeagues';
-import type { LeagueMatch } from '../../types/league';
+import type { LeagueMatch, LeagueMember } from '../../types/league';
 import { fmtDate } from '../../utils/formatting';
 import { ScheduleAutofillModal, type RoundInfo } from './ScheduleAutofillModal';
+import { LeagueMatchActionMenu } from './LeagueMatchActionMenu';
+import { MatchApprovalModal } from './MatchApprovalModal';
 import { Button } from '../ui/Button';
+import { Badge } from '../ui/Badge';
 import { Modal } from '../ui/Modal';
 
 type Props = {
   leagueId:        number;
   matches:         LeagueMatch[];
+  members:         LeagueMember[];
   scoreLabel:      string;
   isDraft:         boolean;
   matchCount:      number;
@@ -22,20 +26,20 @@ type Props = {
   currentMemberId: number | null;
 };
 
-export function ScheduleTab({ leagueId, matches, scoreLabel, isDraft, matchCount, memberCount, isOwner, currentMemberId }: Props) {
+export function ScheduleTab({ leagueId, matches, members, scoreLabel, isDraft, matchCount, memberCount, isOwner, currentMemberId }: Props) {
   const generateSchedule  = useGenerateSchedule(leagueId);
   const clearSchedule     = useClearSchedule(leagueId);
   const updateMatch       = useUpdateMatch(leagueId);
   const setMatchdayDate   = useSetMatchdayDate(leagueId);
 
-  const [editing, setEditing]           = useState<number | null>(null);
-  const [homeScore, setHomeScore]       = useState('');
-  const [awayScore, setAwayScore]       = useState('');
+  const [menuMatch, setMenuMatch]       = useState<LeagueMatch | null>(null);
+  const [approvalMatch, setApprovalMatch] = useState<LeagueMatch | null>(null);
   const [editingDay, setEditingDay]     = useState<number | null>(null);
   const [dayDateInput, setDayDateInput] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
   const [autofill, setAutofill]         = useState<{ round: number; date: string } | null>(null);
 
+  const isCpuById = new Map(members.map(m => [m.id, m.is_cpu]));
   const hasSchedule = matchCount > 0;
 
   const byMatchday = matches.reduce<Record<number, LeagueMatch[]>>((acc, m) => {
@@ -53,20 +57,8 @@ export function ScheduleTab({ leagueId, matches, scoreLabel, isDraft, matchCount
     ? { round: firstDatedDay, date: byMatchday[firstDatedDay][0].scheduled_at!.slice(0, 10) }
     : null;
 
-  function startEdit(match: LeagueMatch) {
-    setEditing(match.id);
-    setHomeScore(match.home_score !== null ? String(match.home_score) : '');
-    setAwayScore(match.away_score !== null ? String(match.away_score) : '');
-  }
-
-  function saveResult(matchId: number) {
-    const hs  = parseInt(homeScore, 10);
-    const as_ = parseInt(awayScore, 10);
-    if (isNaN(hs) || isNaN(as_)) return;
-    updateMatch.mutate(
-      { matchId, data: { home_score: hs, away_score: as_ } },
-      { onSuccess: () => setEditing(null) },
-    );
+  function canAct(match: LeagueMatch): boolean {
+    return isOwner || match.home === currentMemberId || match.away === currentMemberId;
   }
 
   function openDayEdit(matchday: number, currentDate: string | null) {
@@ -190,31 +182,17 @@ export function ScheduleTab({ leagueId, matches, scoreLabel, isDraft, matchCount
                   <div className="w-28 shrink-0 text-center">
                     {isDraft ? (
                       <span className="text-xs text-content-faint">vs</span>
-                    ) : editing === match.id ? (
-                      <div className="flex items-center justify-center gap-1">
-                        <input
-                          type="number" min={0} value={homeScore}
-                          onChange={e => setHomeScore(e.target.value)}
-                          className="w-10 rounded-lg border border-border-subtle bg-surface-muted px-1.5 py-1 text-center text-sm text-content-primary outline-none focus:border-border-accent"
-                        />
-                        <span className="text-content-secondary">-</span>
-                        <input
-                          type="number" min={0} value={awayScore}
-                          onChange={e => setAwayScore(e.target.value)}
-                          className="w-10 rounded-lg border border-border-subtle bg-surface-muted px-1.5 py-1 text-center text-sm text-content-primary outline-none focus:border-border-accent"
-                        />
-                        <button type="button" onClick={() => saveResult(match.id)} disabled={updateMatch.isPending}
-                          className="ml-1 px-1 text-xs font-bold text-content-accent transition-colors hover:text-content-primary">
-                          ✓
+                    ) : match.status === 'awaiting_approval' ? (
+                      isOwner ? (
+                        <button type="button" onClick={() => setApprovalMatch(match)}>
+                          <Badge variant="accent">Do akceptacji</Badge>
                         </button>
-                        <button type="button" onClick={() => setEditing(null)}
-                          className="px-1 text-xs text-content-secondary transition-colors hover:text-content-primary">
-                          ✕
-                        </button>
-                      </div>
+                      ) : (
+                        <Badge variant="accent">Do akceptacji</Badge>
+                      )
                     ) : match.status === 'finished' ? (
-                      isOwner || match.home === currentMemberId || match.away === currentMemberId ? (
-                        <button type="button" onClick={() => startEdit(match)}
+                      canAct(match) ? (
+                        <button type="button" onClick={() => setMenuMatch(match)}
                           className="group font-display text-sm font-bold tabular-nums text-content-primary transition-colors hover:text-content-accent"
                           title="Edytuj wynik">
                           {match.home_score}
@@ -228,8 +206,8 @@ export function ScheduleTab({ leagueId, matches, scoreLabel, isDraft, matchCount
                         </span>
                       )
                     ) : (
-                      isOwner || match.home === currentMemberId || match.away === currentMemberId ? (
-                        <button type="button" onClick={() => startEdit(match)}
+                      canAct(match) ? (
+                        <button type="button" onClick={() => setMenuMatch(match)}
                           className="rounded-lg border border-dashed border-border-subtle px-3 py-1 text-xs text-content-secondary transition-colors hover:bg-surface-muted hover:text-content-primary">
                           Wpisz wynik
                         </button>
@@ -275,6 +253,30 @@ export function ScheduleTab({ leagueId, matches, scoreLabel, isDraft, matchCount
             </Button>
           </div>
         </Modal>
+      )}
+
+      {/* Wpisz wynik / Na żywo menu */}
+      {menuMatch && (
+        <LeagueMatchActionMenu
+          leagueId={leagueId}
+          match={menuMatch}
+          homeIsCpu={isCpuById.get(menuMatch.home) ?? false}
+          awayIsCpu={isCpuById.get(menuMatch.away) ?? false}
+          entering={updateMatch.isPending}
+          onEnterResult={(matchId, payload) => {
+            updateMatch.mutate({ matchId, data: payload }, { onSuccess: () => setMenuMatch(null) });
+          }}
+          onClose={() => setMenuMatch(null)}
+        />
+      )}
+
+      {/* Owner approval of a non-owner-submitted result */}
+      {approvalMatch && (
+        <MatchApprovalModal
+          leagueId={leagueId}
+          match={approvalMatch}
+          onClose={() => setApprovalMatch(null)}
+        />
       )}
     </div>
   );

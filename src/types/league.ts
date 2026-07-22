@@ -1,11 +1,14 @@
+import type { CurrentLeg, LegRecord } from './bracket';
+
 export type LeagueFormat   = 'legs' | 'sets';
 export type LeagueStatus   = 'draft' | 'active' | 'finished';
 export type MemberStatus   = 'active' | 'pending';
-export type MatchStatus    = 'pending' | 'finished';
+export type MatchStatus    = 'pending' | 'awaiting_approval' | 'finished';
 
 export type LeagueMember = {
   id:           number;
   player_id:    number | null;
+  is_cpu:       boolean;
   display_name: string;
   status:       MemberStatus;
   joined_at:    string;
@@ -23,6 +26,24 @@ export type LeagueMatch = {
   home_score:   number | null;
   away_score:   number | null;
   played_at:    string | null;
+  submitted_by_username: string | null;
+  home_count_180:        number;
+  away_count_180:        number;
+  home_high_checkouts:   number;
+  away_high_checkouts:   number;
+  home_short_legs:       number;
+  away_short_legs:       number;
+  legs:         LegRecord[];
+  current_leg:  CurrentLeg | null;
+};
+
+export type LeagueMatchStats = {
+  home_count_180:      number;
+  away_count_180:      number;
+  home_high_checkouts: number;
+  away_high_checkouts: number;
+  home_short_legs:     number;
+  away_short_legs:     number;
 };
 
 export type StandingsRow = {
