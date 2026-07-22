@@ -99,6 +99,11 @@ export function CheckoutsGame({ mode, onBack }: Props) {
     }
   }
 
+  function finishNow() {
+    if (phase !== 'playing') return;
+    setPhase('game-over');
+  }
+
   function restart() {
     setCurrentValue(MIN_VALUE);
     setHistory([]);
@@ -126,6 +131,9 @@ export function CheckoutsGame({ mode, onBack }: Props) {
       title="Checkouts"
       onClose={handleClose}
       badge={<Badge variant={mode === 'hard' ? 'down' : 'accent'} className="uppercase">{mode}</Badge>}
+      extraAction={phase === 'playing' && totalAttempts > 0 && (
+        <Button variant="secondary" size="sm" onClick={finishNow}>Zakończ</Button>
+      )}
     >
       {/* ── Value display ────────────────────────────────────── */}
       <div className="flex shrink-0 flex-col items-center gap-1 pb-3 pt-6">
