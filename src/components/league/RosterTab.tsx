@@ -14,6 +14,7 @@ import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Tag } from '../ui/Tag';
 import { Modal } from '../ui/Modal';
+import { SkillIcon } from '../ui/SkillIcon';
 
 type Mode = 'player' | 'placeholder';
 type PendingLink = { memberId: number; memberName: string; player: Player };
@@ -40,6 +41,7 @@ export function RosterTab({ leagueId, isDraft, isOwner }: { leagueId: number; is
 
   const allPlayers: Player[] = playersData ?? [];
   const members              = league?.members ?? [];
+  const playerById           = new Map(allPlayers.map(p => [p.id, p]));
   const memberPlayerIds      = new Set(
     members.map(m => m.player_id).filter((id): id is number => id != null),
   );
@@ -98,10 +100,12 @@ export function RosterTab({ leagueId, isDraft, isOwner }: { leagueId: number; is
                 excludeIds={memberPlayerIds}
                 placeholder="Szukaj gracza…"
                 onSelect={setSelectedPlayer}
+                showSkill
               />
               {selectedPlayer && (
                 <div className="flex items-center gap-2 text-sm text-content-secondary">
                   <span>Wybrany:</span>
+                  <SkillIcon avg={selectedPlayer.average} />
                   <Tag>{selectedPlayer.first_name} {selectedPlayer.last_name}</Tag>
                   <button
                     type="button"
@@ -144,7 +148,10 @@ export function RosterTab({ leagueId, isDraft, isOwner }: { leagueId: number; is
           {activeMembers.map(member => (
             <div key={member.id}
               className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface-overlay px-4 py-3">
-              <span className="text-sm font-medium text-content-primary">{member.display_name}</span>
+              <div className="flex min-w-0 items-center gap-3">
+                <SkillIcon avg={member.player_id != null ? playerById.get(member.player_id)?.average : null} />
+                <span className="truncate text-sm font-medium text-content-primary">{member.display_name}</span>
+              </div>
               {isDraft && (
                 <button type="button"
                   onClick={() => setRemoveTarget({ id: member.id, name: member.display_name })}

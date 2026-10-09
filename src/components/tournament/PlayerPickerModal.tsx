@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { Input } from '../ui/Input';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import { SkillIcon } from '../ui/SkillIcon';
 
 type Mode = 'player' | 'cpu';
 
@@ -118,9 +119,10 @@ export function PlayerPickerModal({ initialSelected, capacity = null, onConfirm,
                     key={p.id}
                     type="button"
                     onClick={() => pick(p)}
-                    className="w-full px-4 py-2.5 text-left text-sm text-content-secondary transition-colors hover:bg-surface-muted hover:text-content-primary"
+                    className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-content-secondary transition-colors hover:bg-surface-muted hover:text-content-primary"
                   >
-                    {p.first_name} {p.last_name}
+                    <SkillIcon avg={p.average} />
+                    <span className="truncate">{p.first_name} {p.last_name}</span>
                   </button>
                 ))
               )}
@@ -139,8 +141,9 @@ export function PlayerPickerModal({ initialSelected, capacity = null, onConfirm,
                 selected.map(p => {
                   const displayName = [p.first_name, p.last_name].filter(Boolean).join(' ');
                   return (
-                    <div key={p.id} className="flex items-center justify-between px-4 py-2.5">
+                    <div key={p.id} className="flex items-center justify-between px-4 py-2">
                       <div className="flex min-w-0 items-center gap-2">
+                        <SkillIcon avg={p.average} />
                         <span className="truncate text-sm text-content-primary">{displayName}</span>
                         {p.cpu && <Badge variant="neutral" mono>Bot</Badge>}
                       </div>

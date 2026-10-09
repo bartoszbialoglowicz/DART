@@ -6,6 +6,7 @@ import { Field } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { OptionButton } from '../ui/OptionButton';
+import { SkillIcon } from '../ui/SkillIcon';
 import { PlayerPickerModal } from './PlayerPickerModal';
 
 type Props = {
@@ -152,6 +153,7 @@ export function TournamentRosterStep({
                 className="flex items-center justify-between rounded-xl border border-border-subtle bg-surface-overlay px-4 py-3"
               >
                 <div className="flex items-center gap-2">
+                  <SkillIcon avg={entry.average} />
                   <span className="text-sm font-medium text-content-primary">{displayName}</span>
                   {isCpu        && <Badge variant="neutral" mono>Bot</Badge>}
                   {isPlaceholder && <Badge variant="rank"    mono>TBD</Badge>}

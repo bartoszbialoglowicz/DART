@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Player } from '../../types/player';
 import { Input } from '../ui/Input';
+import { SkillIcon } from '../ui/SkillIcon';
 
 type Props = {
   players:     Player[];
@@ -9,10 +10,12 @@ type Props = {
   placeholder?: string;
   limit?:      number;
   autoFocus?:  boolean;
+  /** Show each player's skill-tier medal next to the name. */
+  showSkill?:  boolean;
 };
 
 export function PlayerSearchSelect({
-  players, excludeIds, onSelect, placeholder, limit = 8, autoFocus,
+  players, excludeIds, onSelect, placeholder, limit = 8, autoFocus, showSkill,
 }: Props) {
   const [search, setSearch] = useState('');
 
@@ -40,9 +43,10 @@ export function PlayerSearchSelect({
                 key={p.id}
                 type="button"
                 onClick={() => { onSelect(p); setSearch(''); }}
-                className="w-full px-4 py-2.5 text-left text-sm text-content-secondary transition-colors hover:bg-surface-muted hover:text-content-primary"
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm text-content-secondary transition-colors hover:bg-surface-muted hover:text-content-primary"
               >
-                {p.first_name} {p.last_name}
+                {showSkill && <SkillIcon avg={p.average} />}
+                <span className="truncate">{p.first_name} {p.last_name}</span>
               </button>
             ))
           )}

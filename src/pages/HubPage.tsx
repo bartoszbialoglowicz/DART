@@ -6,6 +6,7 @@ import type { Player } from '../types/player';
 import type { Venue, VenuePayload } from '../types/venue';
 import { roundToNearestMultipleOf3, SET_MIN, SET_MAX, LEG_MIN, LEG_MAX, roundToNearestOdd } from '../types/tournament';
 import { botLevel } from '../utils/dart501';
+import { SkillIcon } from '../components/ui/SkillIcon';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
@@ -60,11 +61,12 @@ function BotFormModal({ initial, title, onClose, onSubmit, isPending, isError }:
         </div>
 
         <div>
-          <div className="mb-2 flex items-baseline justify-between">
+          <div className="mb-2 flex items-center justify-between">
             <span className="text-xs text-content-secondary">Poziom trudności</span>
-            <span className="text-sm font-semibold text-content-primary">
+            <span className="flex items-center gap-2 text-sm font-semibold text-content-primary">
+              <SkillIcon avg={avg} size="md" />
               {botLevel(avg)}
-              <span className="ml-1.5 text-xs font-normal text-content-secondary">śr. {avg}</span>
+              <span className="text-xs font-normal tabular-nums text-content-secondary">śr. {avg}</span>
             </span>
           </div>
           <input
@@ -74,9 +76,8 @@ function BotFormModal({ initial, title, onClose, onSubmit, isPending, isError }:
             className="w-full cursor-pointer accent-content-accent"
           />
           <div className="mt-1 flex justify-between text-xs text-content-faint">
-            <span>Rekreacyjny</span>
-            <span>Średni</span>
-            <span>Pro</span>
+            <span>Początkujący</span>
+            <span>Legenda</span>
           </div>
         </div>
 
@@ -434,14 +435,17 @@ export function HubPage() {
                     i > 0 ? 'border-t border-border-subtle' : '',
                   ].join(' ')}
                 >
-                  <div>
-                    <p className="text-sm font-medium text-content-primary">
-                      {bot.first_name} {bot.last_name}
-                    </p>
-                    <p className="text-xs text-content-secondary">
-                      {botLevel(Number(bot.average))}
-                      <span className="ml-2 tabular-nums text-content-faint">śr. {Number(bot.average).toFixed(1)}</span>
-                    </p>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <SkillIcon avg={bot.average} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-content-primary">
+                        {bot.first_name} {bot.last_name}
+                      </p>
+                      <p className="text-xs text-content-secondary">
+                        {botLevel(Number(bot.average))}
+                        <span className="ml-2 tabular-nums text-content-faint">śr. {Number(bot.average).toFixed(1)}</span>
+                      </p>
+                    </div>
                   </div>
 
                   <div className="ml-4 flex items-center gap-1">

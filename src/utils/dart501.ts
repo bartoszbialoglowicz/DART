@@ -1,3 +1,5 @@
+import { SKILL_TIERS, skillTier } from './skillTier';
+
 // Port of symulator/symulator.py — 2D Gaussian dart throw model for 501
 
 const R_BULLSEYE     = 6.35;
@@ -76,12 +78,7 @@ export function avgToSigma(average: number): number {
 
 /** Returns a human-readable skill label for a given 3-dart average. */
 export function botLevel(avg: number): string {
-  if (avg >= 90) return 'Pro';
-  if (avg >= 75) return 'Dobry amator';
-  if (avg >= 60) return 'Klub';
-  if (avg >= 45) return 'Średni';
-  if (avg >= 30) return 'Początkujący';
-  return 'Rekreacyjny';
+  return skillTier(avg)?.label ?? SKILL_TIERS[0].label;
 }
 
 export const SKILL_LEVELS = [
