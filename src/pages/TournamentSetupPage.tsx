@@ -39,6 +39,7 @@ export function TournamentSetupPage() {
   // Step 2 — roster
   const [groupSize, setGroupSize] = useState(4);
   const [entries,   setEntries]   = useState<TournamentPlayer[]>([]);
+  const [maxPlayersInput, setMaxPlayersInput] = useState('');
   const placeholderCounter        = useRef(0);
 
   // Step 3 — phases
@@ -61,6 +62,11 @@ export function TournamentSetupPage() {
   // Re-derive from the raw input rather than trusting onBlur to have fired —
   // a value not divisible by 3 must never reach the created tournament.
   const resolvedMaxDartsPerLeg = maxDartsEnabled ? roundToNearestMultipleOf3(Number(maxDartsInput)) : null;
+
+  // Empty / invalid input means "no limit"; a cap below 2 can't host a tournament.
+  const parsedMaxPlayers = parseInt(maxPlayersInput, 10);
+  const maxPlayers       = Number.isFinite(parsedMaxPlayers) && parsedMaxPlayers >= 2 ? parsedMaxPlayers : null;
+  const overLimit        = maxPlayers != null && entries.length > maxPlayers;
 
   function handleFormatChange(next: TournamentFormat) {
     setFormat(next);
@@ -211,6 +217,9 @@ export function TournamentSetupPage() {
       onBulkSet={handleBulkSet}
       onAddPlaceholder={handleAddPlaceholder}
       onRemove={removeEntry}
+      maxPlayers={maxPlayers}
+      maxPlayersInput={maxPlayersInput}
+      onMaxPlayersInputChange={setMaxPlayersInput}
     />
   );
 
@@ -227,7 +236,7 @@ export function TournamentSetupPage() {
 
   const steps = [
     { label: 'Konfiguracja', done: name.trim() !== '', content: configContent },
-    { label: 'Gracze',       done: entries.length >= 2, content: rosterContent },
+    { label: 'Gracze',       done: entries.length >= 2 && !overLimit, content: rosterContent },
     { label: 'Fazy',         done: true, content: phasesContent },
   ];
 
@@ -236,7 +245,7 @@ export function TournamentSetupPage() {
       <h1 className="mb-6 text-xl font-semibold text-content-primary">Nowy turniej</h1>
       <LeagueSetupStepper
         steps={steps}
-        canFinalize={name.trim() !== '' && entries.length >= 2}
+        canFinalize={name.trim() !== '' && entries.length >= 2 && !overLimit}
         finalizing={createTournament.isPending}
         onFinalize={handleCreate}
         finalizeLabel="Utwórz turniej"

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { TournamentPlayer, TournamentFormat } from '../../types/tournament';
 import { GROUP_SIZE_OPTIONS } from '../../types/tournament';
 import { Input } from '../ui/Input';
+import { Field } from '../ui/Field';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { OptionButton } from '../ui/OptionButton';
@@ -15,20 +16,41 @@ type Props = {
   onBulkSet:         (players: TournamentPlayer[]) => void;
   onAddPlaceholder:  (name: string) => void;
   onRemove:          (id: number) => void;
+  /** null = no limit. */
+  maxPlayers:              number | null;
+  maxPlayersInput:         string;
+  onMaxPlayersInputChange: (v: string) => void;
 };
 
 export function TournamentRosterStep({
   format, groupSize, onGroupSizeChange, entries, onBulkSet, onAddPlaceholder, onRemove,
+  maxPlayers, maxPlayersInput, onMaxPlayersInputChange,
 }: Props) {
   const [pickerOpen, setPickerOpen]           = useState(false);
   const [placeholderName, setPlaceholderName] = useState('');
+  const [placeholderBlocked, setPlaceholderBlocked] = useState(false);
 
-  const registeredEntries = entries.filter(e => e.id > 0);
+  const registeredEntries  = entries.filter(e => e.id > 0);
+  const placeholderCount   = entries.length - registeredEntries.length;
+  const atLimit            = maxPlayers != null && entries.length >= maxPlayers;
+  const overLimit          = maxPlayers != null && entries.length > maxPlayers;
+  // The picker replaces only registered players — placeholders stay, so they
+  // eat into the picker's capacity.
+  const pickerCapacity     = maxPlayers != null ? Math.max(0, maxPlayers - placeholderCount) : null;
 
   function handleAddPlaceholder() {
     if (!placeholderName.trim()) return;
+    if (atLimit) {
+      setPlaceholderBlocked(true);
+      return;
+    }
     onAddPlaceholder(placeholderName.trim());
     setPlaceholderName('');
+  }
+
+  function handleRemove(id: number) {
+    setPlaceholderBlocked(false);
+    onRemove(id);
   }
 
   function handlePickerConfirm(players: TournamentPlayer[]) {
@@ -52,6 +74,23 @@ export function TournamentRosterStep({
           </div>
         </div>
       )}
+
+      <Field
+        label="Maksymalna liczba graczy"
+        hint={maxPlayers != null ? `${entries.length} / ${maxPlayers} graczy` : 'Bez limitu'}
+        error={overLimit ? `Wybrano ${entries.length} graczy — usuń ${entries.length - (maxPlayers ?? 0)}, aby zmieścić się w limicie.` : undefined}
+      >
+        <Input
+          type="number"
+          inputMode="numeric"
+          min={2}
+          value={maxPlayersInput}
+          onChange={e => { onMaxPlayersInputChange(e.target.value); setPlaceholderBlocked(false); }}
+          placeholder="Bez limitu"
+          invalid={overLimit}
+          className="max-w-32"
+        />
+      </Field>
 
       {/* Registered players + bots */}
       <div className="rounded-xl border border-border-subtle bg-surface-overlay p-4">
@@ -89,6 +128,11 @@ export function TournamentRosterStep({
             Dodaj
           </Button>
         </div>
+        {placeholderBlocked && atLimit && (
+          <p role="status" className="mt-2 text-xs text-score-down-text">
+            Osiągnięto limit {maxPlayers} graczy.
+          </p>
+        )}
       </div>
 
       {/* All entries list */}
@@ -119,7 +163,7 @@ export function TournamentRosterStep({
                 </div>
                 <button
                   type="button"
-                  onClick={() => onRemove(entry.id)}
+                  onClick={() => handleRemove(entry.id)}
                   className="rounded p-1 text-content-secondary transition-colors hover:text-score-down-text"
                   aria-label="Usuń"
                 >×</button>
@@ -132,6 +176,7 @@ export function TournamentRosterStep({
       {pickerOpen && (
         <PlayerPickerModal
           initialSelected={registeredEntries}
+          capacity={pickerCapacity}
           onConfirm={handlePickerConfirm}
           onClose={() => setPickerOpen(false)}
         />

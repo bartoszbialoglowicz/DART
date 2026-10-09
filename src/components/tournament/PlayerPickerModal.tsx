@@ -21,17 +21,22 @@ function toTournamentPlayer(p: Player): TournamentPlayer {
 
 type Props = {
   initialSelected: TournamentPlayer[];
+  /** Max players this picker may hold; null = no limit. */
+  capacity?:       number | null;
   onConfirm:       (players: TournamentPlayer[]) => void;
   onClose:         () => void;
 };
 
-export function PlayerPickerModal({ initialSelected, onConfirm, onClose }: Props) {
+export function PlayerPickerModal({ initialSelected, capacity = null, onConfirm, onClose }: Props) {
   const { data: playersData } = usePlayers();
   const allPlayers: Player[]  = playersData ?? [];
 
   const [mode, setMode]       = useState<Mode>('player');
   const [search, setSearch]   = useState('');
   const [selected, setSelected] = useState<TournamentPlayer[]>(initialSelected);
+  const [limitHit, setLimitHit] = useState(false);
+
+  const atCapacity = capacity != null && selected.length >= capacity;
 
   const selectedIds = new Set(selected.map(p => p.id));
 
@@ -44,10 +49,15 @@ export function PlayerPickerModal({ initialSelected, onConfirm, onClose }: Props
     );
 
   function pick(player: Player) {
+    if (atCapacity) {
+      setLimitHit(true);
+      return;
+    }
     setSelected(prev => [...prev, toTournamentPlayer(player)]);
   }
 
   function unpick(id: number) {
+    setLimitHit(false);
     setSelected(prev => prev.filter(p => p.id !== id));
   }
 
@@ -58,9 +68,18 @@ export function PlayerPickerModal({ initialSelected, onConfirm, onClose }: Props
       onClose={onClose}
       footer={
         <div className="flex w-full items-center justify-between">
-          <span className="text-sm text-content-secondary">
-            {selected.length} {selected.length === 1 ? 'gracz wybrany' : 'graczy wybranych'}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-sm tabular-nums text-content-secondary">
+              {capacity != null
+                ? `${selected.length} / ${capacity} graczy`
+                : `${selected.length} ${selected.length === 1 ? 'gracz wybrany' : 'graczy wybranych'}`}
+            </span>
+            {limitHit && atCapacity && (
+              <span role="status" className="text-xs text-score-down-text">
+                Osiągnięto limit — usuń kogoś, aby dodać innego gracza.
+              </span>
+            )}
+          </div>
           <Button variant="primary" onClick={() => onConfirm(selected)}>
             Zapisz
           </Button>
