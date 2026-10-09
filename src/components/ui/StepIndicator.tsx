@@ -26,7 +26,7 @@ export function StepIndicator({ steps, current, onStepClick }: Props) {
             >
               <span className={cn(
                 'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums transition',
-                state === 'done'     && 'bg-content-accent text-content-on-accent',
+                state === 'done'     && 'bg-surface-accent text-content-on-accent',
                 state === 'current'  && 'border-2 border-content-accent text-content-accent',
                 state === 'upcoming' && 'border border-border-subtle text-content-faint',
               )}>
