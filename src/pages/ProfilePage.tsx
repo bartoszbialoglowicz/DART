@@ -1,6 +1,7 @@
 import { lazy, Suspense, useState } from 'react';
 import legendIcon from '../assets/icons/5-legenda.svg';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { useMyStats, useMyEvents } from '../hooks/usePlayers';
 import { useTrainingSessions } from '../hooks/useTraining';
 import type { PlayerEvent, PlayerStats, TrainingSession } from '../types/player';
@@ -9,6 +10,7 @@ import { Card } from '../components/ui/Card';
 import { Stat } from '../components/ui/Stat';
 import { Badge } from '../components/ui/Badge';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
+import { Toggle } from '../components/ui/Toggle';
 
 const TrainingChart = lazy(() =>
   import('../components/profile/TrainingCharts').then(m => ({ default: m.TrainingChart }))
@@ -137,6 +139,12 @@ export function ProfilePage() {
               <SidebarStat label="Najlepsza średnia" value={bestSession ? bestSession.average.toFixed(2) : '—'} />
               <SidebarStat label="180 łącznie"       value={String(stats.count_180)} />
               <SidebarStat label="Highfinishe"       value={String(stats.high_checkouts)} />
+            </div>
+
+            {/* Appearance */}
+            <div className="mt-2.5 flex items-center justify-between border-t border-border-subtle pt-4">
+              <span className="text-xs text-content-secondary">Jasny motyw</span>
+              <ThemeToggle />
             </div>
           </Card>
         </aside>
@@ -403,6 +411,17 @@ function SectionHeader({ label, sub }: { label: string; sub: string }) {
       <p className="text-xs font-semibold uppercase tracking-widest text-content-secondary">{label}</p>
       <p className="text-xs text-content-secondary">{sub}</p>
     </div>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  return (
+    <Toggle
+      checked={theme === 'light'}
+      onChange={toggleTheme}
+      aria-label="Przełącz jasny motyw"
+    />
   );
 }
 

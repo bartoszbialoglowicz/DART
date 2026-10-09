@@ -99,3 +99,42 @@
   --font-sans:    "Inter", system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, monospace;
 }
+
+/* ---------------------------------------------------------------------------
+   LIGHT THEME — overrides the same raw slots the dark palette above defines
+   (ink-* ramp, status colours, accent-soft/text). Semantic tokens (surface-*,
+   content-*, border-*) are all declared as `var(--color-ink-XXX)` etc., so
+   redefining just these leaf variables re-themes the whole app — no component
+   or primitive needs to change. Toggled via `data-theme` on <html>, see
+   src/context/ThemeContext.tsx.
+   --------------------------------------------------------------------------- */
+:root[data-theme="light"] {
+  /* ink ramp inverted: ink-950 (surface-base) is now the lightest, ink-50
+     (content-primary/border-strong/surface-invert) the darkest */
+  --color-ink-950: #f4f6f2;
+  --color-ink-900: #ffffff;
+  --color-ink-850: #e6ebe4;
+  --color-ink-700: #dbe2d7;
+  --color-ink-500: #93a096;
+  --color-ink-300: #57685d;
+  --color-ink-50:  #152019;
+
+  /* magenta accent fills stay identical (still meant to pop); text usages
+     are darkened for AA contrast against light surfaces */
+  --color-content-accent: #a3004f;
+
+  --color-score-up:        #178a58;
+  --color-score-up-soft:   #e1f5ec;
+  --color-score-up-text:   #0e6e46;
+
+  --color-score-down:      #d6006e;
+  --color-score-down-soft: #fce3ee;
+  --color-score-down-text: #a3004f;
+
+  --color-rank:            #a9762a;
+  --color-rank-soft:       #faf1dd;
+  --color-rank-text:       #8a5f1f;
+
+  --color-accent-soft: #fce3ee;
+  --color-accent-text: #a3004f;
+}
