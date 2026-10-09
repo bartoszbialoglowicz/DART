@@ -8,17 +8,18 @@ type Props = {
   match:          BracketMatch;
   matchFormat:    MatchFormat;
   isOwner:        boolean;
+  confirmed:      boolean;
   avgByName?:     Map<string, number>;
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, topScore: number, bottomScore: number) => void;
 };
 
-export function MatchCard({ match, matchFormat, isOwner, avgByName, onSimulate, onEnterResult }: Props) {
+export function MatchCard({ match, matchFormat, isOwner, confirmed, avgByName, onSimulate, onEnterResult }: Props) {
   const { top, bottom, result, legs } = match;
   const [menuOpen, setMenuOpen] = useState(false);
 
   const hasPlayers   = top.playerId !== null && bottom.playerId !== null;
-  const isClickable  = hasPlayers && !result;
+  const isClickable  = hasPlayers && !result && confirmed;
 
   const topIsWinner    = result?.winner === 'top';
   const bottomIsWinner = result?.winner === 'bottom';

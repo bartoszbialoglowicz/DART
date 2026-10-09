@@ -11,6 +11,7 @@ import { KnockoutBracket } from './KnockoutBracket';
 type Props = {
   data:                  GroupsBracketData;
   isOwner:               boolean;
+  confirmed:             boolean;
   avgByName?:            Map<string, number>;
   onSimulateGroup?:      (groupId: string, matchId: string) => void;
   onEnterGroupResult?:   (groupId: string, matchId: string, top: number, bottom: number) => void;
@@ -22,7 +23,7 @@ type Props = {
 const QUALIFIERS_PER_GROUP = 2;
 
 export function GroupsBracket({
-  data, isOwner, avgByName,
+  data, isOwner, confirmed, avgByName,
   onSimulateGroup, onEnterGroupResult, onGeneratePlayoff,
   onSimulatePlayoff, onEnterPlayoffResult,
 }: Props) {
@@ -44,6 +45,7 @@ export function GroupsBracket({
               group={group}
               matchFormat={matchFormat}
               isOwner={isOwner}
+              confirmed={confirmed}
               avgByName={avgByName}
               onSimulate={onSimulateGroup ? (matchId) => onSimulateGroup(group.id, matchId) : undefined}
               onEnterResult={onEnterGroupResult ? (matchId, t, b) => onEnterGroupResult(group.id, matchId, t, b) : undefined}
@@ -68,6 +70,7 @@ export function GroupsBracket({
             rounds={playoff.rounds}
             matchFormat={matchFormat}
             isOwner={isOwner}
+            confirmed={confirmed}
             avgByName={avgByName}
             onSimulate={onSimulatePlayoff}
             onEnterResult={onEnterPlayoffResult}
@@ -81,11 +84,12 @@ export function GroupsBracket({
 // ── Group card ────────────────────────────────────────────────────────────────
 
 function GroupCard({
-  group, matchFormat, isOwner, avgByName, onSimulate, onEnterResult,
+  group, matchFormat, isOwner, confirmed, avgByName, onSimulate, onEnterResult,
 }: {
   group:          Group;
   matchFormat:    MatchFormat;
   isOwner:        boolean;
+  confirmed:      boolean;
   avgByName?:     Map<string, number>;
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, top: number, bottom: number) => void;
@@ -118,6 +122,7 @@ function GroupCard({
             match={match}
             matchFormat={matchFormat}
             isOwner={isOwner}
+            confirmed={confirmed}
             avgByName={avgByName}
             onSimulate={onSimulate}
             onEnterResult={onEnterResult}
@@ -167,17 +172,18 @@ function StandingRow({ standing: s, rank, advances }: { standing: GroupStanding;
 // ── Group match row ───────────────────────────────────────────────────────────
 
 function GroupMatchRow({
-  match, matchFormat, isOwner, avgByName, onSimulate, onEnterResult,
+  match, matchFormat, isOwner, confirmed, avgByName, onSimulate, onEnterResult,
 }: {
   match:          BracketMatch;
   matchFormat:    MatchFormat;
   isOwner:        boolean;
+  confirmed:      boolean;
   avgByName?:     Map<string, number>;
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, top: number, bottom: number) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const canInteract = isOwner && !match.result
+  const canInteract = isOwner && confirmed && !match.result
     && match.top.playerId !== null && match.bottom.playerId !== null;
 
   return (

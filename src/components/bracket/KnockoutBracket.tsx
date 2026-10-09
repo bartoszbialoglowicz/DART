@@ -20,12 +20,13 @@ type Props = {
   rounds:         BracketRound[];
   matchFormat:    MatchFormat;
   isOwner:        boolean;
+  confirmed:      boolean;
   avgByName?:     Map<string, number>;
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, topScore: number, bottomScore: number) => void;
 };
 
-export function KnockoutBracket({ rounds, matchFormat, isOwner, avgByName, onSimulate, onEnterResult }: Props) {
+export function KnockoutBracket({ rounds, matchFormat, isOwner, confirmed, avgByName, onSimulate, onEnterResult }: Props) {
   // Height is derived from first-round match count to accommodate byes in non-power-of-2 brackets.
   const totalHeight = (rounds[0]?.matches.length ?? 1) * 2 * SLOT_SIZE;
 
@@ -61,7 +62,7 @@ export function KnockoutBracket({ rounds, matchFormat, isOwner, avgByName, onSim
               style={{ width: ROUND_WIDTH, height: totalHeight, justifyContent: 'space-around' }}
             >
               {round.matches.map(match => (
-                <MatchCard key={match.id} match={match} matchFormat={round.matchFormat ?? matchFormat} isOwner={isOwner} avgByName={avgByName} onSimulate={onSimulate} onEnterResult={onEnterResult} />
+                <MatchCard key={match.id} match={match} matchFormat={round.matchFormat ?? matchFormat} isOwner={isOwner} confirmed={confirmed} avgByName={avgByName} onSimulate={onSimulate} onEnterResult={onEnterResult} />
               ))}
             </div>
 

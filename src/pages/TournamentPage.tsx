@@ -5,11 +5,12 @@ import { useAuth } from '../context/AuthContext';
 import { Bracket } from '../components/bracket/Bracket';
 import { TournamentStats } from '../components/bracket/TournamentStats';
 import { buildManualResult, simulateMatch } from '../utils/simulate';
-import { applyResult, applyGroupMatchResult, applyPlayoffResult, generatePlayoffFromGroups } from '../utils/bracket';
+import { applyResult, applyGroupMatchResult, applyPlayoffResult, generatePlayoffFromGroups, redrawBracket } from '../utils/bracket';
 import { aggregatePlayerStats, computeMatchStats } from '../utils/statistics';
 import { statisticsApi } from '../api/statistics';
-import { useTournament, useTournamentStatistics, useUpdateTournament } from '../hooks/useTournaments';
+import { useTournament, useTournamentStatistics, useUpdateTournament, useConfirmTournamentDraft } from '../hooks/useTournaments';
 import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { cn } from '../components/ui/cn';
 import type { BracketData, BracketRound } from '../types/bracket';
 import type { MatchFormat } from '../types/tournament';
@@ -31,6 +32,7 @@ export function TournamentPage() {
 
   const { data: tournament, isLoading, isError } = useTournament(tournamentId, 5000);
   const updateTournament = useUpdateTournament();
+  const confirmDraft     = useConfirmTournamentDraft();
   const { username }     = useAuth();
   const isOwner          = !!username && username === tournament?.owner_username;
   const isMutating       = useIsMutating();
@@ -145,6 +147,18 @@ export function TournamentPage() {
     saveBracket({ ...bracket, playoff: { rounds: generatePlayoffFromGroups(bracket.groups, bracket.phaseConfigs ?? {}) } });
   }
 
+  // ── Draw / confirm ─────────────────────────────────────────
+
+  function handleRedraw() {
+    if (!bracket) return;
+    saveBracket(redrawBracket(bracket));
+  }
+
+  function handleConfirm() {
+    if (!confirm('Zatwierdzić drabinkę? Nie będzie można jej ponownie wylosować.')) return;
+    confirmDraft.mutate(tournamentId);
+  }
+
   if (isError) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
@@ -170,14 +184,29 @@ export function TournamentPage() {
     <div className="flex flex-1 flex-col">
       <div className="flex items-center justify-between border-b border-border-subtle px-8 py-4">
         <div>
-          <h2 className="text-base font-semibold text-content-primary">{bracket.name}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base font-semibold text-content-primary">{bracket.name}</h2>
+            {!tournament?.bracket_confirmed && <Badge variant="neutral">Szkic</Badge>}
+          </div>
           <p className="mt-0.5 text-xs text-content-secondary">
             {bracket.format === 'knockout' ? 'SKO' : 'Grupy'} · {bracket.playerCount} graczy · BO{bracket.matchFormat.sets} set · BO{bracket.matchFormat.legs} leg
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={() => navigate('/turnieje')}>
-          Wróć do listy
-        </Button>
+        <div className="flex items-center gap-2">
+          {isOwner && !tournament?.bracket_confirmed && (
+            <>
+              <Button variant="secondary" size="sm" onClick={handleRedraw}>
+                Losuj ponownie
+              </Button>
+              <Button variant="primary" size="sm" onClick={handleConfirm}>
+                Zatwierdź
+              </Button>
+            </>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => navigate('/turnieje')}>
+            Wróć do listy
+          </Button>
+        </div>
       </div>
 
       {statsError && (
@@ -216,6 +245,7 @@ export function TournamentPage() {
         <Bracket
           data={bracket}
           isOwner={isOwner}
+          confirmed={tournament?.bracket_confirmed ?? false}
           avgByName={avgByName}
           onSimulate={handleSimulate}
           onEnterResult={handleEnterResult}

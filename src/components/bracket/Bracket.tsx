@@ -5,6 +5,7 @@ import { GroupsBracket } from './GroupsBracket';
 type Props = {
   data:                  BracketData;
   isOwner:               boolean;
+  confirmed:             boolean;
   avgByName?:            Map<string, number>;
   onSimulate?:           (matchId: string) => void;
   onEnterResult?:        (matchId: string, topScore: number, bottomScore: number) => void;
@@ -13,13 +14,14 @@ type Props = {
   onGeneratePlayoff?:    () => void;
 };
 
-export function Bracket({ data, isOwner, avgByName, onSimulate, onEnterResult, onSimulateGroup, onEnterGroupResult, onGeneratePlayoff }: Props) {
+export function Bracket({ data, isOwner, confirmed, avgByName, onSimulate, onEnterResult, onSimulateGroup, onEnterGroupResult, onGeneratePlayoff }: Props) {
   if (data.format === 'knockout') {
     return (
       <KnockoutBracket
         rounds={data.rounds}
         matchFormat={data.matchFormat}
         isOwner={isOwner}
+        confirmed={confirmed}
         avgByName={avgByName}
         onSimulate={onSimulate}
         onEnterResult={onEnterResult}
@@ -30,6 +32,7 @@ export function Bracket({ data, isOwner, avgByName, onSimulate, onEnterResult, o
     <GroupsBracket
       data={data}
       isOwner={isOwner}
+      confirmed={confirmed}
       avgByName={avgByName}
       onSimulateGroup={onSimulateGroup}
       onEnterGroupResult={onEnterGroupResult}

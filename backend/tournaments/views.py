@@ -91,6 +91,15 @@ class TournamentViewSet(viewsets.ModelViewSet):
         else:
             serializer.save(is_active=serializer.instance.is_active)
 
+    @action(detail=True, methods=['post'], url_path='confirm-draft')
+    def confirm_draft(self, request, pk=None):
+        tournament = self.get_object()
+        if tournament.owner != request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        tournament.bracket_confirmed = True
+        tournament.save(update_fields=['bracket_confirmed'])
+        return Response(TournamentSerializer(tournament, context={'request': request}).data)
+
     @action(detail=True, methods=['put', 'patch'], url_path=r'match-legs/(?P<match_id>[^/.]+)')
     def update_match_leg(self, request, pk=None, match_id=None):
         tournament = self.get_object()

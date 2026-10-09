@@ -59,6 +59,17 @@ export function useUpdateTournament() {
   });
 }
 
+export function useConfirmTournamentDraft() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => tournamentsApi.confirmDraft(id),
+    onSuccess: (saved) => {
+      qc.setQueryData(tournamentKeys.detail(saved.id), saved);
+      qc.invalidateQueries({ queryKey: tournamentKeys.list() });
+    },
+  });
+}
+
 export function useUpdateMatchLeg() {
   const qc = useQueryClient();
   return useMutation({

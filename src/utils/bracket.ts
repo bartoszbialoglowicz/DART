@@ -44,12 +44,12 @@ function emptySlot(): MatchSlot {
 
 // ── Knockout ──────────────────────────────────────────────────────────────────
 
-function generateKnockoutRounds(
-  players: TournamentPlayer[],
+function generateKnockoutRoundsFromSlots(
+  slots: MatchSlot[],
   phaseConfigs: Record<string, PhaseConfig>,
 ): BracketRound[] {
-  const seeded = shuffle(players);
-  const bracketSize = nextPowerOf2(players.length);
+  const seeded = shuffle(slots);
+  const bracketSize = nextPowerOf2(slots.length);
   const numRounds   = Math.log2(bracketSize);
   return Array.from({ length: numRounds }, (_, roundIndex) => {
     const matchCount = bracketSize / Math.pow(2, roundIndex + 1);
@@ -62,11 +62,18 @@ function generateKnockoutRounds(
       ...(pc?.matchFormat && { matchFormat: pc.matchFormat }),
       matches: Array.from({ length: matchCount }, (_, matchIndex) => ({
         id:     `r${roundIndex}-m${matchIndex}`,
-        top:    roundIndex === 0 ? playerSlot(seeded[matchIndex * 2])     : emptySlot(),
-        bottom: roundIndex === 0 ? playerSlot(seeded[matchIndex * 2 + 1]) : emptySlot(),
+        top:    roundIndex === 0 ? seeded[matchIndex * 2]     ?? emptySlot() : emptySlot(),
+        bottom: roundIndex === 0 ? seeded[matchIndex * 2 + 1] ?? emptySlot() : emptySlot(),
       })),
     };
   });
+}
+
+function generateKnockoutRounds(
+  players: TournamentPlayer[],
+  phaseConfigs: Record<string, PhaseConfig>,
+): BracketRound[] {
+  return generateKnockoutRoundsFromSlots(players.map(playerSlot), phaseConfigs);
 }
 
 function applyResultInRounds(rounds: BracketRound[], matchId: string, result: MatchResult): BracketRound[] {
@@ -139,21 +146,25 @@ function generateGroupMatches(groupId: string, slots: MatchSlot[]): BracketMatch
   return matches;
 }
 
-function generateGroups(players: TournamentPlayer[], groupSize: number, boardCount?: number | null): Group[] {
-  const seeded     = shuffle(players);
-  const groupCount = Math.max(1, Math.ceil(players.length / groupSize));
+function generateGroupsFromSlots(slots: MatchSlot[], groupSize: number, boardCount?: number | null): Group[] {
+  const seeded     = shuffle(slots);
+  const groupCount = Math.max(1, Math.ceil(slots.length / groupSize));
   return Array.from({ length: groupCount }, (_, i) => {
-    const groupPlayers = seeded.slice(i * groupSize, (i + 1) * groupSize);
-    const slots = Array.from({ length: groupSize }, (_, j) => playerSlot(groupPlayers[j]));
+    const groupSlots = seeded.slice(i * groupSize, (i + 1) * groupSize);
+    const filled = Array.from({ length: groupSize }, (_, j) => groupSlots[j] ?? emptySlot());
     const board = boardCount ? (i % boardCount) + 1 : undefined;
     return {
       id:      `group-${i}`,
       label:   String.fromCharCode(65 + i),
-      slots,
-      matches: generateGroupMatches(`group-${i}`, slots),
+      slots:   filled,
+      matches: generateGroupMatches(`group-${i}`, filled),
       ...(board !== undefined && { board }),
     };
   });
+}
+
+function generateGroups(players: TournamentPlayer[], groupSize: number, boardCount?: number | null): Group[] {
+  return generateGroupsFromSlots(players.map(playerSlot), groupSize, boardCount);
 }
 
 export type GroupStanding = {
@@ -254,6 +265,20 @@ export function applyPlayoffResult(b: GroupsBracketData, matchId: string, result
 }
 
 // ── Generator ─────────────────────────────────────────────────────────────────
+
+// Re-shuffles the original roster already embedded in an unconfirmed bracket
+// (round 0 / group slots) into a fresh draw — no round-trip through
+// TournamentPlayer needed since the slots already carry everything
+// generateBracket() would derive from a roster.
+export function redrawBracket(bracket: BracketData): BracketData {
+  if (bracket.format === 'knockout') {
+    const slots = bracket.rounds[0]?.matches.flatMap(m => [m.top, m.bottom]).filter(s => s.playerId !== null) ?? [];
+    return { ...bracket, rounds: generateKnockoutRoundsFromSlots(slots, bracket.phaseConfigs ?? {}) };
+  }
+  const slots     = bracket.groups.flatMap(g => g.slots).filter(s => s.playerId !== null);
+  const groupSize = bracket.groups[0]?.slots.length ?? 4;
+  return { ...bracket, groups: generateGroupsFromSlots(slots, groupSize, bracket.board_count ?? null) };
+}
 
 export function generateBracket(config: TournamentConfig): BracketData {
   const playerCount   = config.players.length;

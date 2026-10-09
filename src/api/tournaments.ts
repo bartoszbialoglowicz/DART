@@ -7,6 +7,7 @@ export interface Tournament {
   format: string;
   bracket: BracketData;
   is_active: boolean;
+  bracket_confirmed: boolean;
   is_private: boolean;
   start_date: string | null;
   owner_username: string | null;
@@ -89,6 +90,10 @@ export const tournamentsApi = {
     return client.patch<TournamentServer>(`/tournaments/${id}/`, {
       bracket: stripLegsFromBracket(bracket),
     }).then(mergeLegsIntoBracket);
+  },
+
+  confirmDraft(id: number) {
+    return client.post<TournamentServer>(`/tournaments/${id}/confirm-draft/`, {}).then(mergeLegsIntoBracket);
   },
 
   updateMatchLeg(id: number, matchId: string, legs: LegRecord[], currentLeg: CurrentLeg | null) {
