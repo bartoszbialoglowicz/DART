@@ -12,7 +12,13 @@ if not SECRET_KEY:
 
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.100.10']
+
+def _env_list(name, default):
+    raw = os.environ.get(name)
+    return [v.strip() for v in raw.split(',') if v.strip()] if raw is not None else default
+
+
+ALLOWED_HOSTS = _env_list('DJANGO_ALLOWED_HOSTS', ['localhost', '127.0.0.1', '192.168.100.10'])
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -35,6 +41,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -65,22 +72,16 @@ WSGI_APPLICATION = 'config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        # WAL lets readers and a writer run concurrently instead of blocking
-        # each other; the timeout has writers retry instead of immediately
-        # raising "database is locked". Needed because live-match play (score
-        # entries, leg locks, result saves) fires several near-simultaneous
-        # requests per match, and the same account can have more than one
-        # device open on a tournament at once.
-        'OPTIONS': {
-            'transaction_mode': 'IMMEDIATE',
-            'timeout': 20,
-            'init_command': (
-                'PRAGMA journal_mode=WAL;'
-                'PRAGMA synchronous=NORMAL;'
-            ),
-        },
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB', 'dart'),
+        'USER': os.environ.get('POSTGRES_USER', 'dart'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''),
+        # Defaults to localhost so the local (non-Docker) dev workflow works
+        # against `docker compose up -d db` with zero extra config; the
+        # `backend` container overrides this to the `db` service name.
+        'HOST': os.environ.get('POSTGRES_HOST', 'localhost'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
+        'CONN_MAX_AGE': int(os.environ.get('POSTGRES_CONN_MAX_AGE', '60')),
     }
 }
 
@@ -96,10 +97,21 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
+STATIC_URL  = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 MEDIA_URL  = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.StaticFilesStorage' if DEBUG else
+            'whitenoise.storage.CompressedManifestStaticFilesStorage'
+        ),
+    },
+}
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -114,9 +126,11 @@ REST_FRAMEWORK = {
     ],
 }
 
-# ── CORS (Vite dev server) ────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = [
+# ── CORS / CSRF ────────────────────────────────────────────────────────────
+CORS_ALLOWED_ORIGINS = _env_list('DJANGO_CORS_ALLOWED_ORIGINS', [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'http://192.168.100.10:5173',
-]
+])
+
+CSRF_TRUSTED_ORIGINS = _env_list('DJANGO_CSRF_TRUSTED_ORIGINS', [])
