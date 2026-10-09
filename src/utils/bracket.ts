@@ -299,14 +299,28 @@ export function generateBracket(config: TournamentConfig): BracketData {
   // groups — use group-stage format if configured, otherwise default
   const groupPhaseFormat = phaseConfigs['groups']?.matchFormat ?? config.matchFormat;
   const boardCount = config.venue_board_count ?? null;
+  const groups     = generateGroups(config.players, config.groupSize, boardCount);
+
+  // bracket.matchFormat holds the group-stage format here, so a playoff round
+  // left at the wizard's default (no phaseConfig of its own) would otherwise
+  // fall back to the group format instead of the tournament default the
+  // Fazy step displayed. Pin every playoff round's format at creation.
+  const numPlayoffRounds = Math.log2(nextPowerOf2(groups.length * 2));
+  const resolvedPhases: Record<string, PhaseConfig> = { ...phaseConfigs };
+  for (let ri = 0; ri < numPlayoffRounds; ri++) {
+    const id = `r${ri}`;
+    if (!resolvedPhases[id]?.matchFormat) {
+      resolvedPhases[id] = { ...resolvedPhases[id], matchFormat: config.matchFormat };
+    }
+  }
 
   return {
-    format:      'groups',
-    name:        config.name,
+    format:       'groups',
+    name:         config.name,
     playerCount,
-    matchFormat: groupPhaseFormat,
-    ...(hasPhases   && { phaseConfigs }),
+    matchFormat:  groupPhaseFormat,
+    phaseConfigs: resolvedPhases,
     ...(boardCount  && { board_count: boardCount }),
-    groups: generateGroups(config.players, config.groupSize, boardCount),
+    groups,
   };
 }
