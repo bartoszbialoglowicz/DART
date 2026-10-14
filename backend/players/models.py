@@ -13,6 +13,12 @@ class Player(models.Model):
     photo      = models.ImageField(upload_to='players/photos/',      blank=True, null=True)
     winner_img = models.ImageField(upload_to='players/winner_imgs/', blank=True, null=True)
     cpu        = models.BooleanField(default=False)
+    # An account-less player ("słup") the organizer has linked to a real
+    # player profile: their tournament history counts as that profile's.
+    # The słup row and its tournament entries stay as they were.
+    merged_into = models.ForeignKey(
+        'self', null=True, blank=True, on_delete=models.SET_NULL, related_name='merged_aliases',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -20,6 +26,42 @@ class Player(models.Model):
 
     def __str__(self) -> str:
         return f'{self.first_name} {self.last_name}'
+
+    @property
+    def display_name(self) -> str:
+        return ' '.join(filter(None, [self.first_name, self.last_name]))
+
+
+class PlayerContact(models.Model):
+    """An organizer may pick this registered player in their tournaments and
+    leagues. Created only from the player's link code (directly, or when the
+    organizer links one of their account-less players); either side can
+    remove it. Organizers never see registered players without one."""
+    owner      = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='player_contacts')
+    player     = models.ForeignKey(Player, on_delete=models.CASCADE, related_name='contact_of')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['player__first_name', 'player__last_name']
+        constraints = [
+            models.UniqueConstraint(fields=['owner', 'player'], name='unique_player_contact'),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.owner} → {self.player}'
+
+
+class PlayerLinkCode(models.Model):
+    """A short-lived code a registered player hands to an organizer so the
+    organizer can link their account-less players to this profile — the
+    organizer never browses accounts. One active code per profile."""
+    player     = models.OneToOneField(Player, on_delete=models.CASCADE, related_name='link_code')
+    code       = models.CharField(max_length=8, unique=True)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        return f'{self.player} — {self.code}'
 
 
 class PendingMatchResult(models.Model):

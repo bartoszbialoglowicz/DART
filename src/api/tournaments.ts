@@ -1,99 +1,77 @@
 import { client } from './client';
-import type { BracketData, BracketMatch, CurrentLeg, LegRecord } from '../types/bracket';
+import type { BracketData, CurrentLeg, LegRecord } from '../types/bracket';
+import type { MatchFormat, PhaseConfig, TournamentFormat } from '../types/tournament';
 
-export interface Tournament {
+/** List row — no bracket. */
+export interface TournamentSummary {
   id: number;
   name: string;
   format: string;
-  bracket: BracketData;
   is_active: boolean;
   bracket_confirmed: boolean;
   is_private: boolean;
   start_date: string | null;
   owner_username: string | null;
+  player_count: number;
   created_at: string;
   updated_at: string;
 }
 
-// Shape returned by the server — bracket has no legs, legs are in match_legs
-interface TournamentServer extends Tournament {
-  match_legs: Record<string, { legs: LegRecord[]; currentLeg: CurrentLeg | null }>;
+/** Detail — the bracket is built by the server from the tournament's matches. */
+export interface Tournament extends TournamentSummary {
+  bracket: BracketData;
 }
 
-function mergeMatch(m: BracketMatch, ml: { legs: LegRecord[]; currentLeg: CurrentLeg | null } | undefined): BracketMatch {
-  if (!ml) return m;
-  return {
-    ...m,
-    ...(ml.legs?.length   ? { legs:       ml.legs       } : {}),
-    ...(ml.currentLeg     ? { currentLeg: ml.currentLeg } : {}),
-  };
-}
+/** A roster line: an existing player, or a guest known only by name. */
+export type TournamentEntryInput = { player_id: number } | { name: string };
 
-function mergeLegsIntoBracket(raw: TournamentServer): Tournament {
-  const { match_legs, ...rest } = raw;
-  if (!match_legs || Object.keys(match_legs).length === 0) return rest;
+export type CreateTournamentInput = {
+  name:          string;
+  format:        TournamentFormat;
+  is_private:    boolean;
+  start_date:    string | null;
+  match_format:  MatchFormat;
+  group_size:    number;
+  phase_configs: Record<string, PhaseConfig>;
+  board_count:   number | null;
+  entries:       TournamentEntryInput[];
+};
 
-  const merge = (m: BracketMatch) => mergeMatch(m, match_legs[m.id]);
-
-  let bracket: BracketData = raw.bracket;
-  if (bracket.format === 'knockout') {
-    bracket = { ...bracket, rounds: bracket.rounds.map(r => ({ ...r, matches: r.matches.map(merge) })) };
-  } else {
-    bracket = {
-      ...bracket,
-      groups: bracket.groups.map(g => ({ ...g, matches: (g.matches ?? []).map(merge) })),
-      playoff: bracket.playoff
-        ? { rounds: bracket.playoff.rounds.map(r => ({ ...r, matches: r.matches.map(merge) })) }
-        : undefined,
-    };
-  }
-  return { ...rest, bracket };
-}
-
-function stripLegsFromBracket(bracket: BracketData): BracketData {
-  const strip = ({ legs: _l, currentLeg: _c, ...m }: BracketMatch): BracketMatch => m;
-  if (bracket.format === 'knockout') {
-    return { ...bracket, rounds: bracket.rounds.map(r => ({ ...r, matches: r.matches.map(strip) })) };
-  }
-  return {
-    ...bracket,
-    groups: bracket.groups.map(g => ({ ...g, matches: (g.matches ?? []).map(strip) })),
-    playoff: bracket.playoff
-      ? { rounds: bracket.playoff.rounds.map(r => ({ ...r, matches: r.matches.map(strip) })) }
-      : undefined,
-  };
-}
+export type MatchResultInput = {
+  top_score:    number;
+  bottom_score: number;
+  legs?:        LegRecord[];
+  /** From the live-scoring screen — atomically releases its own live-leg lock. */
+  live?:        boolean;
+};
 
 export const tournamentsApi = {
   list() {
-    return client.get<{ results: TournamentServer[]; count: number }>('/tournaments/').then(res => ({
-      ...res,
-      results: res.results.map(mergeLegsIntoBracket),
-    }));
+    return client.get<{ results: TournamentSummary[]; count: number }>('/tournaments/');
   },
 
   detail(id: number) {
-    return client.get<TournamentServer>(`/tournaments/${id}/`).then(mergeLegsIntoBracket);
+    return client.get<Tournament>(`/tournaments/${id}/`);
   },
 
-  create(bracket: BracketData, meta: { is_private: boolean; start_date: string | null }) {
-    return client.post<TournamentServer>('/tournaments/', {
-      name:       bracket.name,
-      format:     bracket.format,
-      bracket:    stripLegsFromBracket(bracket),
-      is_private: meta.is_private,
-      start_date: meta.start_date,
-    }).then(mergeLegsIntoBracket);
-  },
-
-  update(id: number, bracket: BracketData) {
-    return client.patch<TournamentServer>(`/tournaments/${id}/`, {
-      bracket: stripLegsFromBracket(bracket),
-    }).then(mergeLegsIntoBracket);
+  create(input: CreateTournamentInput) {
+    return client.post<Tournament>('/tournaments/', input);
   },
 
   confirmDraft(id: number) {
-    return client.post<TournamentServer>(`/tournaments/${id}/confirm-draft/`, {}).then(mergeLegsIntoBracket);
+    return client.post<Tournament>(`/tournaments/${id}/confirm-draft/`, {});
+  },
+
+  redraw(id: number) {
+    return client.post<Tournament>(`/tournaments/${id}/redraw/`, {});
+  },
+
+  recordResult(id: number, matchId: string, input: MatchResultInput) {
+    return client.post<Tournament>(`/tournaments/${id}/matches/${matchId}/result/`, input);
+  },
+
+  advanceGroups(id: number) {
+    return client.post<Tournament>(`/tournaments/${id}/advance-groups/`, {});
   },
 
   updateMatchLeg(id: number, matchId: string, legs: LegRecord[], currentLeg: CurrentLeg | null) {

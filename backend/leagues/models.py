@@ -99,7 +99,7 @@ class LeagueMatch(models.Model):
     home_short_legs       = models.PositiveIntegerField(default=0)
     away_short_legs       = models.PositiveIntegerField(default=0)
 
-    # Leg-by-leg live-play state, same shape as tournaments.MatchLeg — no
+    # Leg-by-leg live-play state, same shape as tournaments.Match.legs — no
     # separate model needed since LeagueMatch is already a plain row (not
     # JSON embedded in a bracket like tournament matches are).
     legs        = models.JSONField(default=list, blank=True)

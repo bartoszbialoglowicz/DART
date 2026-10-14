@@ -11,6 +11,7 @@ export type MatchSlot = {
   playerAvg:  number | null;
   isCpu:      boolean;
   cpuSigma?:  number;
+  entryId?:   number;  // TournamentEntry id — set by the server for occupied slots
 };
 
 export type MatchResult = {
@@ -40,6 +41,8 @@ export type CurrentLeg = {
   activePlayer: 0 | 1;
 };
 
+export type MatchStatus = 'pending' | 'live' | 'finished' | 'bye';
+
 export type BracketMatch = {
   id:           string;
   top:          MatchSlot;
@@ -47,6 +50,8 @@ export type BracketMatch = {
   result?:      MatchResult;
   legs?:        LegRecord[];
   currentLeg?:  CurrentLeg;
+  status?:      MatchStatus;
+  matchFormat?: MatchFormat;  // resolved format (round → phase → tournament default)
 };
 
 export type BracketRound = {
@@ -66,12 +71,24 @@ export type KnockoutBracketData = {
   rounds:        BracketRound[];
 };
 
+/** Server-computed group table row (headline score = legs in a single-set format). */
+export type GroupStandingRow = {
+  entryId:     number;
+  played:      number;
+  wins:        number;
+  losses:      number;
+  legsFor:     number;
+  legsAgainst: number;
+  points:      number;
+};
+
 export type Group = {
   id:     string;
   label:  string;
   slots:  MatchSlot[];
   matches: BracketMatch[];
   board?: number;  // 1-based board number, present only when tournament has a venue
+  standings?: GroupStandingRow[];
 };
 
 export type GroupsBracketData = {

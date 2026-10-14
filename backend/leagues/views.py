@@ -12,6 +12,7 @@ from .serializers import (
     LeagueMatchSerializer,
     LeagueSerializer,
 )
+from players import linking
 from players.models import Player
 
 
@@ -45,7 +46,7 @@ def _round_robin(members, matches_per_pair):
 
 
 def _compute_standings(league):
-    members    = list(league.members.all())
+    members    = list(league.members.select_related('player'))
     matches    = league.matches.filter(status='finished')
     pw, pd     = league.points_win, league.points_draw
 
@@ -53,7 +54,7 @@ def _compute_standings(league):
         m.pk: {
             'member_id':    m.pk,
             'display_name': m.display_name,
-            'player_id':    m.player_id,
+            'player_id':    (m.player.merged_into_id or m.player_id) if m.player_id else None,
             'status':       m.status,
             'played': 0, 'won': 0, 'drawn': 0, 'lost': 0,
             'score_for': 0, 'score_against': 0, 'points': 0,
@@ -110,9 +111,10 @@ class LeagueViewSet(viewsets.ModelViewSet):
 
         q = Q(owner=user)
         if player:
-            q |= Q(members__player=player, status__in=['active', 'finished'])
+            # The profile and every account-less player linked to it.
+            q |= Q(members__player__in=linking.identity_ids(player), status__in=['active', 'finished'])
 
-        return League.objects.filter(q).distinct().prefetch_related('members')
+        return League.objects.filter(q).distinct().prefetch_related('members__player')
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -129,26 +131,32 @@ class LeagueViewSet(viewsets.ModelViewSet):
         display_name = request.data.get('display_name', '').strip()
 
         if player_id:
-            try:
-                player = Player.objects.get(pk=player_id)
-            except Player.DoesNotExist:
+            # Same rule as the tournament wizard: own bots and account-less
+            # players, own profile, registered players who gave a code.
+            player = linking.visible_players(request.user, include_linked_guests=True).filter(pk=player_id).first()
+            if player is None:
                 return Response({'detail': 'Gracz nie istnieje.'}, status=status.HTTP_404_NOT_FOUND)
+            player = linking.canonical(player)
 
-            if league.members.filter(player=player).exists():
+            if league.members.filter(player__in=linking.identity_ids(player)).exists():
                 return Response({'detail': 'Gracz jest już w lidze.'}, status=status.HTTP_400_BAD_REQUEST)
 
             member = LeagueMember.objects.create(
                 league=league,
                 player=player,
-                display_name=f'{player.first_name} {player.last_name}',
+                display_name=player.display_name,
                 status='active',
             )
         else:
             if not display_name:
                 return Response({'detail': 'Podaj imię i nazwisko.'}, status=status.HTTP_400_BAD_REQUEST)
+            # A name-only member is an account-less player owned by the league
+            # organizer — linkable to an account later, like in tournaments.
+            first, _, last = display_name.partition(' ')
+            slup = Player.objects.create(owner=league.owner, first_name=first, last_name=last.strip(), cpu=False)
             member = LeagueMember.objects.create(
                 league=league,
-                player=None,
+                player=slup,
                 display_name=display_name,
                 status='pending',
             )
@@ -178,19 +186,25 @@ class LeagueViewSet(viewsets.ModelViewSet):
         except LeagueMember.DoesNotExist:
             return Response({'detail': 'Nie znaleziono gracza oczekującego.'}, status=status.HTTP_404_NOT_FOUND)
 
+        # The member is an account-less player; linking it to a registered
+        # player the organizer has as a contact (they gave their code) moves
+        # this league history to that account — same as linking in the Hub.
         player_id = request.data.get('player_id')
         try:
-            player = Player.objects.get(pk=player_id)
-        except Player.DoesNotExist:
+            target = Player.objects.get(pk=player_id)
+        except (Player.DoesNotExist, ValueError, TypeError):
             return Response({'detail': 'Gracz nie istnieje.'}, status=status.HTTP_404_NOT_FOUND)
-
-        if league.members.filter(player=player).exists():
+        if league.members.filter(player__in=linking.identity_ids(target)).exclude(pk=member.pk).exists():
             return Response({'detail': 'Ten gracz jest już w lidze.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        member.player       = player
-        member.display_name = f'{player.first_name} {player.last_name}'
-        member.status       = 'active'
-        member.save()
+        try:
+            linking.link(request.user, member.player, contact_id=target.pk)
+        except linking.LinkError as exc:
+            return Response({'detail': str(exc)}, status=exc.status_code)
+
+        member.refresh_from_db()
+        member.display_name = target.display_name
+        member.save(update_fields=['display_name'])
         return Response(LeagueMemberSerializer(member).data)
 
     # ── Schedule ─────────────────────────────────────────────────────────────
@@ -281,7 +295,7 @@ class LeagueViewSet(viewsets.ModelViewSet):
         if not is_owner:
             player = getattr(request.user, 'player_profile', None)
             member_id = (
-                league.members.filter(player=player).values_list('id', flat=True).first()
+                league.members.filter(player__in=linking.identity_ids(player)).values_list('id', flat=True).first()
             ) if player else None
             if member_id not in {match.home_id, match.away_id}:
                 return None, Response({'detail': 'Brak uprawnień.'}, status=status.HTTP_403_FORBIDDEN)

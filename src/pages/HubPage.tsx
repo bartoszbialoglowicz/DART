@@ -15,6 +15,7 @@ import { Card } from '../components/ui/Card';
 import { Modal } from '../components/ui/Modal';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
 import { BestOfField } from '../components/tournament/BestOfField';
+import { GuestPlayersTab } from '../components/hub/GuestPlayersTab';
 
 // ── Bot form modal ────────────────────────────────────────────────────────────
 
@@ -280,11 +281,12 @@ type VenueModal =
   | { mode: 'edit'; venue: Venue }
   | null;
 
-type Tab = 'boty' | 'lokale';
+type Tab = 'boty' | 'gracze' | 'lokale';
 
 const TAB_OPTIONS = [
-  { value: 'boty'   as Tab, label: 'Moje boty'  },
-  { value: 'lokale' as Tab, label: 'Lokale'     },
+  { value: 'boty'   as Tab, label: 'Moje boty'        },
+  { value: 'gracze' as Tab, label: 'Gracze'           },
+  { value: 'lokale' as Tab, label: 'Lokale'           },
 ];
 
 export function HubPage() {
@@ -473,6 +475,9 @@ export function HubPage() {
           )}
         </section>
       )}
+
+      {/* ── Gracze tab (z kontem + bez konta) ──────────────────────────────── */}
+      {tab === 'gracze' && <GuestPlayersTab />}
 
       {/* ── Lokale tab ───────────────────────────────────────────────────── */}
       {tab === 'lokale' && (

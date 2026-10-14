@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Tournament } from '../../api/tournaments';
+import type { TournamentSummary as Tournament } from '../../api/tournaments';
 import { Input } from '../ui/Input';
 
 type Props = {

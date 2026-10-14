@@ -1,28 +1,26 @@
-import { useEffect, useRef, useState } from 'react';
-import { useIsMutating } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Bracket } from '../components/bracket/Bracket';
 import { TournamentStats } from '../components/bracket/TournamentStats';
-import { buildManualResult, simulateMatch } from '../utils/simulate';
-import { applyResult, applyGroupMatchResult, applyPlayoffResult, generatePlayoffFromGroups, redrawBracket } from '../utils/bracket';
+import { simulateMatch } from '../utils/simulate';
+import { findMatch, headlineScore, matchFormatOf } from '../utils/bracket';
 import { aggregatePlayerStats, computeMatchStats } from '../utils/statistics';
 import { statisticsApi } from '../api/statistics';
-import { useTournament, useTournamentStatistics, useUpdateTournament, useConfirmTournamentDraft } from '../hooks/useTournaments';
+import { ApiError } from '../api/client';
+import {
+  useAdvanceGroups, useConfirmTournamentDraft, useRecordMatchResult, useRedrawTournament,
+  useTournament, useTournamentStatistics,
+} from '../hooks/useTournaments';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { cn } from '../components/ui/cn';
-import type { BracketData, BracketRound } from '../types/bracket';
-import type { MatchFormat } from '../types/tournament';
+import type { BracketMatch, LegRecord } from '../types/bracket';
 
 type Tab = 'bracket' | 'stats';
 
-// A round can override the tournament's default format via the Fazy step —
-// simulating/manually entering a result for that round's match must honour
-// it too, not just the read-only "BOx set/leg" label shown on the bracket.
-function matchRoundFormat(rounds: BracketRound[], matchId: string, fallback: MatchFormat): MatchFormat {
-  const [rPart] = matchId.split('-');
-  return rounds[parseInt(rPart.slice(1), 10)]?.matchFormat ?? fallback;
+function errorText(err: unknown): string {
+  return err instanceof ApiError ? err.detail : err instanceof Error ? err.message : String(err);
 }
 
 export function TournamentPage() {
@@ -31,11 +29,12 @@ export function TournamentPage() {
   const navigate      = useNavigate();
 
   const { data: tournament, isLoading, isError } = useTournament(tournamentId, 5000);
-  const updateTournament = useUpdateTournament();
-  const confirmDraft     = useConfirmTournamentDraft();
-  const { username }     = useAuth();
-  const isOwner          = !!username && username === tournament?.owner_username;
-  const isMutating       = useIsMutating();
+  const recordResult  = useRecordMatchResult();
+  const confirmDraft  = useConfirmTournamentDraft();
+  const redraw        = useRedrawTournament();
+  const advanceGroups = useAdvanceGroups();
+  const { username }  = useAuth();
+  const isOwner       = !!username && username === tournament?.owner_username;
 
   // Tournament-scoped average per player — same figure as the "Statystyki" tab,
   // shown on bracket cards only for players who have actually played here (a
@@ -44,119 +43,55 @@ export function TournamentPage() {
   const { data: statRecords } = useTournamentStatistics(tournamentId, tournament?.is_active ? 5000 : undefined);
   const avgByName = new Map(aggregatePlayerStats(statRecords ?? []).map(r => [r.player_name, r.match_average]));
 
-  const [bracket,   setBracket]   = useState<BracketData | null>(null);
-  const [tab,       setTab]       = useState<Tab>('bracket');
-  const [statsError, setStatsError] = useState<string | null>(null);
-  const initialized                 = useRef(false);
+  const [tab,         setTab]         = useState<Tab>('bracket');
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!tournament) return;
-    if (!initialized.current) {
-      setBracket(tournament.bracket);
-      initialized.current = true;
-      return;
-    }
-    if (isMutating === 0) {
-      setBracket(tournament.bracket);
-    }
-  }, [tournament, isMutating]);
+  const bracket = tournament?.bracket ?? null;
 
-  function saveBracket(updated: BracketData) {
-    setBracket(updated);
-    updateTournament.mutate({ id: tournamentId, bracket: updated });
-  }
+  // Every bracket change is a server command that returns the updated
+  // tournament; failures (e.g. a result already saved from another device)
+  // surface in the banner below the header.
+  const onCommandError = { onError: (err: unknown) => setActionError(errorText(err)) };
 
-  function saveStats(
-    matchId: string,
-    top:     { playerName: string | null; playerId?: number | null },
-    bottom:  { playerName: string | null; playerId?: number | null },
-    legs:    ReturnType<typeof simulateMatch>['legs'],
-  ) {
+  function saveStats(matchId: string, match: BracketMatch, legs: LegRecord[]) {
     const stats = computeMatchStats(
       matchId, legs,
-      [top.playerName ?? 'Gracz 1', bottom.playerName ?? 'Gracz 2'],
-      [top.playerId ?? null,         bottom.playerId ?? null],
+      [match.top.playerName ?? 'Gracz 1', match.bottom.playerName ?? 'Gracz 2'],
+      [match.top.playerId ?? null,         match.bottom.playerId ?? null],
     );
     statisticsApi.save(tournamentId, stats).catch((err) => {
       console.error('Błąd zapisu statystyk:', err);
-      setStatsError('Nie udało się zapisać statystyk dla jednego z meczy. Sprawdź konsolę po szczegóły.');
+      setActionError('Nie udało się zapisać statystyk dla jednego z meczy. Sprawdź konsolę po szczegóły.');
     });
   }
 
-  // ── Knockout ────────────────────────────────────────────────
-
   function handleSimulate(matchId: string) {
-    if (!bracket) return;
-
-    if (bracket.format === 'knockout') {
-      const [rPart, mPart] = matchId.split('-');
-      const match = bracket.rounds[parseInt(rPart.slice(1))]?.matches[parseInt(mPart.slice(1))];
-      if (!match) return;
-      const matchFormat = matchRoundFormat(bracket.rounds, matchId, bracket.matchFormat);
-      const { result, legs } = simulateMatch(match.top, match.bottom, matchFormat);
-      saveBracket(applyResult(bracket, matchId, result));
-      saveStats(matchId, match.top, match.bottom, legs);
-      return;
-    }
-
-    if (bracket.format === 'groups' && bracket.playoff) {
-      const [rPart, mPart] = matchId.split('-');
-      const match = bracket.playoff.rounds[parseInt(rPart.slice(1))]?.matches[parseInt(mPart.slice(1))];
-      if (!match) return;
-      const matchFormat = matchRoundFormat(bracket.playoff.rounds, matchId, bracket.matchFormat);
-      const { result, legs } = simulateMatch(match.top, match.bottom, matchFormat);
-      saveBracket(applyPlayoffResult(bracket, matchId, result));
-      saveStats(matchId, match.top, match.bottom, legs);
-    }
+    const match = findMatch(bracket ?? undefined, matchId);
+    if (!bracket || !match) return;
+    const matchFormat = matchFormatOf(match, bracket);
+    const { result, legs } = simulateMatch(match.top, match.bottom, matchFormat);
+    const score = headlineScore(result, legs, matchFormat);
+    recordResult.mutate(
+      { id: tournamentId, matchId, top_score: score.top, bottom_score: score.bottom, legs },
+      { ...onCommandError, onSuccess: () => saveStats(matchId, match, legs) },
+    );
   }
 
   function handleEnterResult(matchId: string, topScore: number, bottomScore: number) {
-    if (!bracket) return;
-    const matchFormat =
-      bracket.format === 'knockout'                        ? matchRoundFormat(bracket.rounds, matchId, bracket.matchFormat) :
-      bracket.format === 'groups' && bracket.playoff        ? matchRoundFormat(bracket.playoff.rounds, matchId, bracket.matchFormat) :
-      bracket.matchFormat;
-    const result = buildManualResult(topScore, bottomScore, matchFormat);
-    if (bracket.format === 'knockout') {
-      saveBracket(applyResult(bracket, matchId, result));
-    } else if (bracket.format === 'groups' && bracket.playoff) {
-      saveBracket(applyPlayoffResult(bracket, matchId, result));
-    }
-  }
-
-  // ── Groups ──────────────────────────────────────────────────
-
-  function handleSimulateGroupMatch(groupId: string, matchId: string) {
-    if (!bracket || bracket.format !== 'groups') return;
-    const group = bracket.groups.find(g => g.id === groupId);
-    const match = group?.matches?.find(m => m.id === matchId);
-    if (!group || !match) return;
-    const { result, legs } = simulateMatch(match.top, match.bottom, bracket.matchFormat);
-    saveBracket(applyGroupMatchResult(bracket, groupId, matchId, result));
-    saveStats(matchId, match.top, match.bottom, legs);
-  }
-
-  function handleEnterGroupResult(groupId: string, matchId: string, topScore: number, bottomScore: number) {
-    if (!bracket || bracket.format !== 'groups') return;
-    const result = buildManualResult(topScore, bottomScore, bracket.matchFormat);
-    saveBracket(applyGroupMatchResult(bracket, groupId, matchId, result));
+    recordResult.mutate({ id: tournamentId, matchId, top_score: topScore, bottom_score: bottomScore }, onCommandError);
   }
 
   function handleGeneratePlayoff() {
-    if (!bracket || bracket.format !== 'groups') return;
-    saveBracket({ ...bracket, playoff: { rounds: generatePlayoffFromGroups(bracket.groups, bracket.phaseConfigs ?? {}) } });
+    advanceGroups.mutate(tournamentId, onCommandError);
   }
 
-  // ── Draw / confirm ─────────────────────────────────────────
-
   function handleRedraw() {
-    if (!bracket) return;
-    saveBracket(redrawBracket(bracket));
+    redraw.mutate(tournamentId, onCommandError);
   }
 
   function handleConfirm() {
     if (!confirm('Zatwierdzić drabinkę? Nie będzie można jej ponownie wylosować.')) return;
-    confirmDraft.mutate(tournamentId);
+    confirmDraft.mutate(tournamentId, onCommandError);
   }
 
   if (isError) {
@@ -209,12 +144,12 @@ export function TournamentPage() {
         </div>
       </div>
 
-      {statsError && (
+      {actionError && (
         <div className="flex items-center justify-between gap-4 border-b border-border-subtle bg-score-down-soft px-8 py-2">
-          <p className="text-xs text-score-down-text">{statsError}</p>
+          <p className="text-xs text-score-down-text">{actionError}</p>
           <button
             type="button"
-            onClick={() => setStatsError(null)}
+            onClick={() => setActionError(null)}
             className="shrink-0 text-xs text-score-down-text opacity-70 transition-opacity hover:opacity-100"
             aria-label="Zamknij"
           >
@@ -249,8 +184,8 @@ export function TournamentPage() {
           avgByName={avgByName}
           onSimulate={handleSimulate}
           onEnterResult={handleEnterResult}
-          onSimulateGroup={handleSimulateGroupMatch}
-          onEnterGroupResult={handleEnterGroupResult}
+          onSimulateGroup={(_, matchId) => handleSimulate(matchId)}
+          onEnterGroupResult={(_, matchId, top, bottom) => handleEnterResult(matchId, top, bottom)}
           onGeneratePlayoff={handleGeneratePlayoff}
         />
       ) : (

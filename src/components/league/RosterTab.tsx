@@ -6,6 +6,8 @@ import {
   useLinkPlayer,
 } from '../../hooks/useLeagues';
 import { usePlayers } from '../../hooks/usePlayers';
+import { useAuth } from '../../context/AuthContext';
+import { ApiError } from '../../api/client';
 import type { Player } from '../../types/player';
 import { PendingBadge, EmptyMsg } from './shared';
 import { PlayerSearchSelect } from './PlayerSearchSelect';
@@ -40,6 +42,10 @@ export function RosterTab({ leagueId, isDraft, isOwner }: { leagueId: number; is
   const [removeTarget, setRemoveTarget]       = useState<RemoveTarget | null>(null);
 
   const allPlayers: Player[] = playersData ?? [];
+  // Registered players who gave the organizer their code — only they can be
+  // linked to a name-only member (Hub → Gracze adds more by code).
+  const { playerId: myPlayerId } = useAuth();
+  const contactPlayers = allPlayers.filter(p => p.user_id != null && p.id !== myPlayerId);
   const members              = league?.members ?? [];
   const playerById           = new Map(allPlayers.map(p => [p.id, p]));
   const memberPlayerIds      = new Set(
@@ -204,8 +210,13 @@ export function RosterTab({ leagueId, isDraft, isOwner }: { leagueId: number; is
                         ?
                       </p>
                       <p className="mt-0.5 text-xs text-content-secondary">
-                        Ta operacja jest nieodwracalna — wyniki meczów pozostaną przypisane do tego gracza.
+                        Wyniki meczów trafią do statystyk tego gracza. Możesz to cofnąć w Hub → Gracze.
                       </p>
+                      {linkPlayer.error && (
+                        <p className="mt-1 text-xs text-score-down-text">
+                          {linkPlayer.error instanceof ApiError ? linkPlayer.error.detail : 'Nie udało się powiązać gracza.'}
+                        </p>
+                      )}
                       <div className="mt-3 flex gap-2">
                         <Button variant="primary" size="sm" loading={linkPlayer.isPending} onClick={confirmLink}>
                           Potwierdź
@@ -216,14 +227,20 @@ export function RosterTab({ leagueId, isDraft, isOwner }: { leagueId: number; is
                       </div>
                     </div>
                   ) : (
+                    contactPlayers.length === 0 ? (
+                      <p className="text-xs text-content-secondary">
+                        Nie masz graczy z kontem. Poproś gracza o kod z jego profilu i dodaj go w Hub → Gracze.
+                      </p>
+                    ) : (
                     <PlayerSearchSelect
-                      players={allPlayers}
+                      players={contactPlayers}
                       excludeIds={memberPlayerIds}
                       placeholder="Szukaj zarejestrowanego gracza…"
                       autoFocus
                       limit={6}
                       onSelect={p => setPendingLink({ memberId: member.id, memberName: member.display_name, player: p })}
                     />
+                    )
                   )}
                 </div>
               )}

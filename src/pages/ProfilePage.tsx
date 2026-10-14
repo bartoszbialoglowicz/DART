@@ -3,14 +3,19 @@ import legendIcon from '../assets/icons/5-legenda.svg';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useMyStats, useMyEvents } from '../hooks/usePlayers';
+import {
+  useIssueLinkCode, useLinkedGuests, useMyLinkCode, useOrganizers, useRemoveOrganizer, useRevokeLinkCode, useUnlinkGuest,
+} from '../hooks/useLinking';
 import { useTrainingSessions } from '../hooks/useTraining';
 import type { PlayerEvent, PlayerStats, TrainingSession } from '../types/player';
 import { fmtDate, fmtDateShort } from '../utils/formatting';
+import { plural } from '../utils/plural';
 import { Card } from '../components/ui/Card';
 import { Stat } from '../components/ui/Stat';
 import { Badge } from '../components/ui/Badge';
 import { SegmentedControl } from '../components/ui/SegmentedControl';
 import { Toggle } from '../components/ui/Toggle';
+import { Button } from '../components/ui/Button';
 
 const TrainingChart = lazy(() =>
   import('../components/profile/TrainingCharts').then(m => ({ default: m.TrainingChart }))
@@ -153,6 +158,7 @@ export function ProfilePage() {
         <div className="flex flex-col gap-5 lg:min-w-0 lg:flex-1">
           <ProgressSection sessions={sessions} />
           <TournamentStatsSection stats={stats} />
+          <LinkedHistorySection />
           <TrainingSummarySection sessions={sessions} />
           <EventsSection events={events} />
         </div>
@@ -404,6 +410,104 @@ function EventsSection({ events }: { events: PlayerEvent[] }) {
 }
 
 // ── Small shared components (local to this page) ────────────────────────────────
+
+// ── Code for organizers ───────────────────────────────────────────────────────
+
+function LinkedHistorySection() {
+  const { data: code }           = useMyLinkCode();
+  const { data: linked = [] }     = useLinkedGuests();
+  const { data: organizers = [] } = useOrganizers();
+  const issue  = useIssueLinkCode();
+  const revoke = useRevokeLinkCode();
+  const unlink = useUnlinkGuest();
+  const removeOrganizer = useRemoveOrganizer();
+  const [copied, setCopied] = useState(false);
+
+  function copy(value: string) {
+    navigator.clipboard?.writeText(value).then(() => setCopied(true)).catch(() => {});
+  }
+
+  function handleRemoveOrganizer(id: number, username: string) {
+    if (!confirm(`Odebrać @${username} możliwość dodawania Cię do turniejów i lig?`)) return;
+    removeOrganizer.mutate(id);
+  }
+
+  function handleUnlink(id: number, name: string) {
+    if (!confirm(`Odłączyć „${name}” od Twojego profilu? Te turnieje przestaną się liczyć do Twoich statystyk.`)) return;
+    unlink.mutate(id);
+  }
+
+  return (
+    <Card>
+      <SectionHeader
+        label="Kod dla organizatorów"
+        sub={organizers.length > 0 ? `${organizers.length} z dostępem` : 'nikt nie ma dostępu'}
+      />
+
+      <p className="mb-4 text-sm text-content-secondary">
+        Organizatorzy nie widzą zarejestrowanych graczy. Podaj kod organizatorowi, żeby mógł dodawać Cię do
+        swoich turniejów i lig — oraz powiązać z Tobą wyniki z czasów, gdy grałeś u niego bez konta.
+      </p>
+
+      {code?.code ? (
+        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-border-subtle p-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-2xl font-semibold tracking-widest tabular-nums text-content-primary">{code.code}</p>
+            <p className="text-xs text-content-faint">Ważny do {fmtDate(code.expires_at!)}</p>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => copy(code.code!)}>
+            {copied ? 'Skopiowano' : 'Kopiuj'}
+          </Button>
+          <Button variant="ghost" size="sm" loading={issue.isPending} onClick={() => { setCopied(false); issue.mutate(); }}>
+            Nowy kod
+          </Button>
+          <Button variant="ghost" size="sm" loading={revoke.isPending} onClick={() => revoke.mutate()}>
+            Unieważnij
+          </Button>
+        </div>
+      ) : (
+        <Button variant="primary" size="sm" className="mb-4" loading={issue.isPending} onClick={() => issue.mutate()}>
+          Wygeneruj kod
+        </Button>
+      )}
+
+      {organizers.length > 0 && (
+        <div className="mb-4 flex flex-col gap-2">
+          <p className="text-xs font-medium text-content-secondary">Mogą dodawać Cię do turniejów i lig</p>
+          {organizers.map(o => (
+            <div key={o.id} className="flex items-center gap-4 rounded-xl border border-border-subtle p-3">
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold text-content-primary">@{o.username}</p>
+              <Button variant="ghost" size="sm" loading={removeOrganizer.isPending} onClick={() => handleRemoveOrganizer(o.id, o.username)}>
+                Odbierz dostęp
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {linked.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-medium text-content-secondary">Twoje wyniki sprzed założenia konta</p>
+          {linked.map(g => (
+            <div key={g.id} className="flex items-center gap-4 rounded-xl border border-border-subtle p-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-content-primary">„{g.name}”</p>
+                <p className="truncate text-xs text-content-secondary">
+                  {g.owner_username ? `u @${g.owner_username} · ` : ''}
+                  {g.tournaments.length} {plural(g.tournaments.length, 'wydarzenie', 'wydarzenia', 'wydarzeń')}
+                  {g.tournaments.length > 0 && `: ${g.tournaments.map(t => t.name).join(', ')}`}
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" loading={unlink.isPending} onClick={() => handleUnlink(g.id, g.name)}>
+                Odłącz
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function SectionHeader({ label, sub }: { label: string; sub: string }) {
   return (
