@@ -3,8 +3,8 @@ One-off conversion of the legacy `Tournament.bracket` JSON into the
 normalized structure (entries, stages, groups, rounds, matches).
 
 Used only by migration 0014, with historical models — the live
-`Tournament` no longer has a `bracket` field (renamed to `legacy_bracket`
-in 0015) and MatchLeg is gone, so don't call this with the real models.
+`Tournament` no longer has a `bracket` field (renamed in 0015, dropped
+in 0016) and MatchLeg is gone, so don't call this with the real models.
 Slots are copied exactly as the JSON has them — advancement was already
 applied client-side — and the graph sources are rebuilt on top so future
 results advance through the server. Match ids are kept as `Match.code`.

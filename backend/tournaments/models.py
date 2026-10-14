@@ -44,9 +44,6 @@ class Tournament(models.Model):
 
     name        = models.CharField(max_length=200)
     format      = models.CharField(max_length=20, choices=FORMAT_CHOICES)
-    # The pre-2026-10-14 bracket JSON, kept read-only after migration 0014
-    # imported it into the models — nothing reads it; dropped in a later release.
-    legacy_bracket = models.JSONField(null=True, blank=True, editable=False)
     is_active   = models.BooleanField(default=True)
     bracket_confirmed = models.BooleanField(default=False)
     is_private  = models.BooleanField(default=False)
