@@ -3,7 +3,15 @@ from .models import League, LeagueMember, LeagueMatch
 
 
 class LeagueMemberSerializer(serializers.ModelSerializer):
-    player_id = serializers.IntegerField(source='player.id', read_only=True, default=None)
+    # The account this member plays as: for an account-less player linked to a
+    # profile that's the profile's id, so the UI recognizes its owner.
+    player_id = serializers.SerializerMethodField()
+
+    def get_player_id(self, obj):
+        if obj.player_id is None:
+            return None
+        return obj.player.merged_into_id or obj.player_id
+
     is_cpu    = serializers.BooleanField(source='player.cpu', read_only=True, default=False)
 
     class Meta:

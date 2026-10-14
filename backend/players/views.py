@@ -1,12 +1,14 @@
 from django.db.models import Avg, Count, Max, Sum
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import filters, permissions, viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Player, TrainingSession, HighscoreSession, SectorPracticeSession, PendingMatchResult
+from . import linking
+from .models import Player, PlayerContact, TrainingSession, HighscoreSession, SectorPracticeSession, PendingMatchResult
 from .serializers import (
     PlayerSerializer, TrainingSessionSerializer, HighscoreSessionSerializer,
     SectorPracticeSessionSerializer, PendingMatchResultSerializer,
@@ -20,15 +22,19 @@ class PlayerViewSet(viewsets.ModelViewSet):
     ordering_fields  = ['last_name', 'average', 'created_at']
 
     def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+        if self.action in ('create', 'update', 'partial_update', 'destroy',
+                           'link_code', 'linked', 'my_guests', 'link', 'unlink',
+                           'contacts', 'remove_contact', 'organizers', 'remove_organizer'):
             return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
 
     def get_queryset(self):
         user = self.request.user
-        if user.is_authenticated:
-            return Player.objects.filter(Q(cpu=False) | Q(owner=user, cpu=True))
-        return Player.objects.filter(cpu=False)
+        if self.action in ('update', 'partial_update', 'destroy'):
+            return Player.objects.filter(owner=user)
+        # Own bots and account-less players, own profile, and registered
+        # players who gave this user their code — never anyone else.
+        return linking.visible_players(user)
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -60,7 +66,9 @@ class PlayerViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Brak profilu gracza.'}, status=404)
 
         player = request.user.player_profile
-        agg = player.statistics.aggregate(
+        # The profile plus every account-less player linked to it.
+        from tournaments.models import MatchStatistic
+        agg = MatchStatistic.objects.filter(player__in=linking.identity_ids(player)).aggregate(
             matches_played=Count('id'),
             avg_average=Avg('match_average'),
             total_double_attempts=Sum('double_attempts'),
@@ -104,12 +112,14 @@ class PlayerViewSet(viewsets.ModelViewSet):
         today = timezone.now().date()
         events = []
 
+        identity = linking.identity_ids(player)
+
         # ── Mecze ligowe ──────────────────────────────────────────────────────
         from leagues.models import LeagueMatch
         matches = (
             LeagueMatch.objects
             .filter(
-                Q(home__player=player) | Q(away__player=player),
+                Q(home__player__in=identity) | Q(away__player__in=identity),
                 scheduled_at__isnull=False,
                 scheduled_at__date__gte=today,
                 status='pending',
@@ -118,7 +128,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
             .order_by('scheduled_at')[:30]
         )
         for m in matches:
-            is_home = m.home.player_id == player.pk
+            is_home = m.home.player_id in identity
             opponent = m.away.display_name if is_home else m.home.display_name
             events.append({
                 'type':      'league_match',
@@ -134,7 +144,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
         tournaments = (
             Tournament.objects
             .filter(
-                entries__player=player,
+                entries__player__in=identity,
                 start_date__isnull=False,
                 start_date__date__gte=today,
             )
@@ -152,6 +162,214 @@ class PlayerViewSet(viewsets.ModelViewSet):
 
         events.sort(key=lambda e: e['date'])
         return Response(events[:20])
+
+
+    # ── Linking account-less players to a profile ─────────────────────────────
+
+    def _link_error(self, exc):
+        return Response({'detail': str(exc)}, status=exc.status_code)
+
+    @staticmethod
+    def _tournaments_of(players):
+        """{player_id: [events]} — tournaments and leagues each player took part in."""
+        from leagues.models import LeagueMember
+        from tournaments.models import TournamentEntry
+        by_player = {}
+        entries = (
+            TournamentEntry.objects.filter(player__in=players)
+            .select_related('tournament').order_by('-tournament__created_at')
+        )
+        for e in entries:
+            by_player.setdefault(e.player_id, []).append({
+                'kind':         'tournament',
+                'id':           e.tournament_id,
+                'name':         e.tournament.name,
+                'display_name': e.display_name,
+                'date':         (e.tournament.start_date or e.tournament.created_at).date().isoformat(),
+            })
+        members = LeagueMember.objects.filter(player__in=players).select_related('league').order_by('-league__created_at')
+        for m in members:
+            by_player.setdefault(m.player_id, []).append({
+                'kind':         'league',
+                'id':           m.league_id,
+                'name':         m.league.name,
+                'display_name': m.display_name,
+                'date':         m.league.created_at.date().isoformat(),
+            })
+        return by_player
+
+    @action(
+        detail=False,
+        methods=['get', 'post', 'delete'],
+        url_path='link-code',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def link_code(self, request):
+        """The registered player's code for organizers (GET current, POST new, DELETE revoke)."""
+        player = getattr(request.user, 'player_profile', None)
+        if player is None:
+            return Response({'detail': 'Najpierw utwórz profil gracza.'}, status=400)
+        if request.method == 'DELETE':
+            linking.revoke_code(player)
+            return Response(status=204)
+        if request.method == 'POST':
+            try:
+                code = linking.issue_code(player)
+            except linking.LinkError as exc:
+                return self._link_error(exc)
+        else:
+            code = linking.active_code(player)
+            if code is None:
+                return Response({'code': None, 'expires_at': None})
+        return Response({'code': linking.format_code(code.code), 'expires_at': code.expires_at})
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='linked',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def linked(self, request):
+        """Account-less players organizers have linked to my profile."""
+        player = getattr(request.user, 'player_profile', None)
+        if player is None:
+            return Response([])
+        aliases = list(player.merged_aliases.select_related('owner').order_by('id'))
+        tournaments = self._tournaments_of(aliases)
+        return Response([
+            {
+                'id':             a.id,
+                'name':           a.display_name,
+                'owner_username': a.owner.username if a.owner else None,
+                'tournaments':    tournaments.get(a.id, []),
+            }
+            for a in aliases
+        ])
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='my-guests',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def my_guests(self, request):
+        """My account-less players (słupy) and the tournaments they played."""
+        guests = list(
+            Player.objects.filter(owner=request.user, user__isnull=True, cpu=False)
+            .select_related('merged_into').order_by('first_name', 'last_name')
+        )
+        tournaments = self._tournaments_of(guests)
+        return Response([
+            {
+                'id':          g.id,
+                'name':        g.display_name,
+                'linked_to':   g.merged_into.display_name if g.merged_into_id else None,
+                'tournaments': tournaments.get(g.id, []),
+            }
+            for g in guests
+        ])
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='link',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def link(self, request, pk=None):
+        """Organizer links their słup using the player's code. `dry_run`
+        returns whose code it is without linking."""
+        slup = get_object_or_404(Player, pk=pk)
+        contact_id = request.data.get('contact_id')
+        try:
+            target = linking.link(
+                request.user, slup, request.data.get('code', ''),
+                contact_id=int(contact_id) if contact_id else None,
+                dry_run=bool(request.data.get('dry_run')),
+            )
+        except linking.LinkError as exc:
+            return self._link_error(exc)
+        return Response({'linked_to': target.display_name, 'linked': not request.data.get('dry_run')})
+
+    @action(
+        detail=True,
+        methods=['post'],
+        url_path='unlink',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def unlink(self, request, pk=None):
+        slup = get_object_or_404(Player.objects.select_related('merged_into'), pk=pk)
+        try:
+            linking.unlink(request.user, slup)
+        except linking.LinkError as exc:
+            return self._link_error(exc)
+        return Response(status=204)
+
+
+    # ── Contacts: registered players an organizer may pick ────────────────────
+
+    @action(
+        detail=False,
+        methods=['get', 'post'],
+        url_path='contacts',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def contacts(self, request):
+        """GET: my registered players. POST {code, dry_run}: add one by their code."""
+        if request.method == 'POST':
+            try:
+                target = linking.add_contact(
+                    request.user, request.data.get('code', ''), dry_run=bool(request.data.get('dry_run')),
+                )
+            except linking.LinkError as exc:
+                return self._link_error(exc)
+            return Response({'id': target.id, 'name': target.display_name, 'added': not request.data.get('dry_run')})
+        rows = PlayerContact.objects.filter(owner=request.user).select_related('player')
+        return Response([{'id': c.player_id, 'name': c.player.display_name} for c in rows])
+
+    @action(
+        detail=False,
+        methods=['delete'],
+        url_path=r'contacts/(?P<player_id>\d+)',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def remove_contact(self, request, player_id=None):
+        PlayerContact.objects.filter(owner=request.user, player_id=player_id).delete()
+        return Response(status=204)
+
+    @action(
+        detail=False,
+        methods=['get'],
+        url_path='organizers',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def organizers(self, request):
+        """Organizers who may add me to their tournaments and leagues."""
+        player = getattr(request.user, 'player_profile', None)
+        if player is None:
+            return Response([])
+        rows = PlayerContact.objects.filter(player=player).select_related('owner').order_by('owner__username')
+        return Response([{'id': c.owner_id, 'username': c.owner.username} for c in rows])
+
+    @action(
+        detail=False,
+        methods=['delete'],
+        url_path=r'organizers/(?P<user_id>\d+)',
+        authentication_classes=[TokenAuthentication],
+        permission_classes=[permissions.IsAuthenticated],
+    )
+    def remove_organizer(self, request, user_id=None):
+        player = getattr(request.user, 'player_profile', None)
+        if player is not None:
+            PlayerContact.objects.filter(player=player, owner_id=user_id).delete()
+        return Response(status=204)
 
 
 class TrainingSessionViewSet(viewsets.ModelViewSet):

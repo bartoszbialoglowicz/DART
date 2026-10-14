@@ -259,9 +259,9 @@ Każdy etap kończy się zielonymi testami i działającą aplikacją.
 | 3 | Migracja danych | `legacy_import.py` + migracja 0014 + komenda `verify_brackets` + 2 testy; zweryfikowane na zrzucie (§5) | ✅ |
 | 4 | API | komendy, kompatybilny `bracket` w odczycie, lekka lista, widoczność / `my_events` / cykle (`services/cycles.py`) na modelach; `tests.py` przepisane (132 testy backendu zielone, w tym 6 wcześniej czerwonych); punktacja cyklu ze zrzutu zgodna ze starą | ✅ |
 | 5 | Frontend | przełączenie na komendy (tabela w §6), tabela grup z serwera (`group.standings`); `npm run build` OK, `lint:ui` 0 uwag, ESLint bez nowych błędów. **Nie przeklikane w przeglądarce** — patrz §9 | ✅ |
-| 6 | Sprzątanie | migracja 0015: `bracket` → `legacy_bracket` (nullable, nieczytany, do usunięcia w kolejnym wydaniu); usunięte `MatchLeg`, `TournamentParticipant`, `sync_participants`, helpery JSON, stara punktacja cykli, komenda `verify_brackets` i testy importu; unikalność statystyk to `(match, entry)`. Zweryfikowane na kopii produkcji: 71/71 publicznych drabinek identycznych z produkcją. **Niewdrożone** | ✅ |
+| 6 | Sprzątanie | migracja 0015: `bracket` → `legacy_bracket` (nullable, nieczytany, do usunięcia w kolejnym wydaniu); usunięte `MatchLeg`, `TournamentParticipant`, `sync_participants`, helpery JSON, stara punktacja cykli, komenda `verify_brackets` i testy importu; unikalność statystyk to `(match, entry)`. Zweryfikowane na kopii produkcji: 71/71 publicznych drabinek identycznych z produkcją. Commit `7a25aa5`; **wdrożone 2026-10-14 ok. 22:20** (kopia: `backup_dart_2026-10-14_2219_pre-stage6.dump`), po wdrożeniu 71/71 drabinek bez zmian | ✅ |
 | 6b | Drop `legacy_bracket` | jedna migracja `RemoveField`, gdy nikt nie zgłosi rozbieżności | ☐ |
-| 7 | Konta ↔ słupy | `Player.merged_into` (FK self), `PlayerClaim` (prośba → zatwierdzenie przez właściciela słupa), statystyki i historia po graczu kanonicznym; ujednolicenie placeholderów w ligach (`LeagueMember.player = NULL` → słup) | ☐ |
+| 7 | Konta ↔ słupy | wg §12 i §13: `Player.merged_into` + `PlayerLinkCode` (`players/0011`), `PlayerContact` (`players/0012`), placeholdery lig → słupy (`leagues/0003`); `players/linking.py`; endpointy `link-code`, `linked`, `my-guests`, `contacts`, `organizers`, `{id}/link`, `{id}/unlink`; tożsamość w `my-stats`, `my-events`, widoczności turniejów i lig, uprawnieniach uczestnika ligi, cyklach i kreatorze; UI: Profil → „Kod dla organizatorów”, Hub → „Gracze”, liga → łączenie z kontaktem. 177 testów. **Niezacommitowane, niewdrożone** | ✅ |
 | 8 | Kreator / drabinka | `structure` endpoint; `Stage.config` (awansujący z grup, najlepsze 3. miejsca, mecz o 3. miejsce, play-in); ręczne rozstawienie przez edycję `*_source` / `*_entry` w szkicu; walidacja grafu (brak cykli, każdy slot ma dokładnie jedno źródło) | ☐ |
 
 > ✅ **Etapy 1–5 wdrożone na produkcję 2026-10-14 ok. 22:10** (`docker compose up -d --build` z katalogu roboczego `feat/palette-a`: paleta A + refaktor + niezacommitowane zmiany UI). Raport migracji: 106 turniejów, 4741 meczów, 7 nowych słupów, 3245 statystyk powiązanych, 6 osieroconych (#18–20). `verify_brackets` na produkcji: OK. Kopia sprzed wdrożenia: `~/backups/dart/backup_dart_2026-10-14_2209_predeploy.dump`. Commit refaktoru: `aef61b5` na `feat/tournament-models` (od `master`).
@@ -308,3 +308,41 @@ Każdy etap kończy się zielonymi testami i działającą aplikacją.
 
 - **Cofnięcie migracji 0015** działa tylko do momentu utworzenia pierwszego nowego turnieju: nowe turnieje mają `legacy_bracket = NULL`, a stare pole `bracket` było `NOT NULL`. Po wdrożeniu realnym powrotem jest kopia bazy.
 - **`legacy_import.py` zostaje**, bo importuje go migracja 0014 (na pustej bazie nic nie robi). Działa wyłącznie na modelach historycznych.
+
+## 12. Etap 7: łączenie konta ze słupami (projekt)
+
+**Scenariusz.** Gracz A gra w turniejach gracza B jako słup (gracz bez konta, właścicielem jest B). Później A zakłada konto i chce mieć te turnieje w swoich statystykach. A prosi B o powiązanie. B **nie przegląda zarejestrowanych kont**: A przekazuje mu kod.
+
+**Przepływ:**
+1. A (z profilem gracza) w Profilu generuje **kod powiązania**, np. `K7QM-3XPA`: 8 znaków bez mylących liter, ważny 7 dni, wielokrotnego użytku w tym czasie (różni organizatorzy, kilka słupów). Nowy kod unieważnia poprzedni; A może kod unieważnić.
+2. B w Hubie → „Gracze bez konta” widzi swoje słupy z listą turniejów, wybiera słup i wpisuje kod.
+3. Serwer pokazuje B, do kogo należy kod (nazwa profilu A, którą A świadomie udostępnił). B potwierdza.
+4. Słup dostaje `merged_into = profil A`. Historia turniejów się nie zmienia (wpisy dalej wskazują słup i zachowują ówczesną nazwę), ale **tożsamość A obejmuje profil i wszystkie powiązane słupy**.
+5. Powiązanie może cofnąć B (właściciel słupa) albo A (właściciel konta).
+
+**Co obejmuje tożsamość A (profil + powiązane słupy):**
+- `my-stats` (statystyki z turniejów);
+- `my-events`;
+- widoczność prywatnych turniejów, w których grał słup;
+- klasyfikacja cykli (punkty słupa i profilu sumują się w jednym wierszu).
+
+**Reguły:**
+- Powiązać można tylko własny słup: `owner = B`, bez konta, nie bot, jeszcze niepowiązany.
+- Celem musi być profil z kontem.
+- Odmowa, jeśli A i słup (albo inny słup A) grali w tym samym turnieju, bo A wystąpiłby w nim dwa razy.
+- Powiązane słupy znikają z listy graczy (wyboru w kreatorze). Wybranie powiązanego słupa w kreatorze zapisuje uczestnika jako profil A.
+
+**Poza zakresem (osobne decyzje):**
+- Placeholdery w ligach (`LeagueMember.player = NULL`) nie są słupami. Ich przeniesienie to osobny krok.
+- Globalna lista graczy (`GET /players/`) pokazuje wszystkim wszystkich zarejestrowanych graczy (m.in. w kreatorze). To kłóci się z zasadą „B nie widzi zarejestrowanych”. Do decyzji.
+
+## 13. Widoczność graczy i kontakty (decyzja 2026-10-14)
+
+- **Organizator widzi wyłącznie** własne boty, własnych graczy bez konta, własny profil oraz **kontakty**: zarejestrowanych graczy, którzy podali mu kod. Dotyczy to listy graczy (`GET /players/`), kreatora turnieju i składu ligi. Niezalogowany nie widzi nikogo.
+- **Kontakt powstaje z kodu gracza:** bezpośrednio (Hub → Gracze → „Dodaj przez kod”, np. gracz jeszcze nie grał u organizatora) albo przy łączeniu słupa kodem. Usunąć go może organizator lub gracz (Profil → „Odbierz dostęp”).
+- **Słup można połączyć z kontaktem bez nowego kodu,** bo zgoda została już wyrażona. Tak działa łączenie członka ligi w składzie ligi.
+- **Edytować i usuwać gracza może tylko jego właściciel.** Dotąd mógł to zrobić każdy zalogowany.
+- **Placeholdery w ligach są słupami** (migracja `leagues/0003`). API ligi podaje dla połączonego słupa `player_id` profilu.
+- **Skutek na produkcji** (kopia z 2026-10-14): organizator `Bartosz` widzi 92 boty, 1 słup i swój profil. Pozostałe konta (testowe) znikają z jego listy, dopóki nie podadzą kodu. 2 słupy i 6 botów bez właściciela (sprzed pola `owner`) nie są widoczne dla nikogo.
+
+**Incydent 2026-10-14 22:41:** testowy backend z wczesną wersją etapu 7 został uruchomiony na produkcyjnej bazie `dart` (brak `POSTGRES_DB=dart_e2e`). Wykonał `players.0011` (pusta kolumna `merged_into` i tabela kodów), a na profilu `Bartosz` wygenerowano jeden kod. Bez wpływu na działanie. Dlatego `0011` musi pozostać w tej treści, a kontakty są w osobnej `0012`.

@@ -10,8 +10,8 @@ import random
 from dataclasses import dataclass
 
 from django.db import transaction
-from django.db.models import Q
 
+from players.linking import visible_players
 from players.models import Player
 
 from ..models import Group, GroupMember, Match, Round, Stage, Tournament, TournamentEntry
@@ -82,11 +82,19 @@ def _resolve_entries(owner, specs: list[EntrySpec]) -> list[Player]:
     ids = [s.player_id for s in specs if s.player_id is not None]
     if len(ids) != len(set(ids)):
         raise TournamentError({'entries': 'Ten sam gracz został dodany więcej niż raz.'})
-    visible = Player.objects.filter(Q(cpu=False) | Q(cpu=True, owner=owner))
-    found   = {p.pk: p for p in visible.filter(pk__in=ids)}
+    # Same rule as the player picker: own bots and account-less players, own
+    # profile, and registered players who gave the organizer their code.
+    visible = visible_players(owner, include_linked_guests=True)
+    found   = {p.pk: p for p in visible.filter(pk__in=ids).select_related('merged_into')}
     missing = [pid for pid in ids if pid not in found]
     if missing:
         raise TournamentError({'entries': f'Nieznani gracze: {", ".join(map(str, missing))}.'})
+
+    # A słup linked to an account plays as that account's profile.
+    found = {pid: p.merged_into if p.merged_into_id else p for pid, p in found.items()}
+    resolved = [found[pid].pk for pid in ids]
+    if len(resolved) != len(set(resolved)):
+        raise TournamentError({'entries': 'Ten sam gracz został dodany więcej niż raz (gracz bez konta jest powiązany z dodanym profilem).'})
 
     players = []
     for spec in specs:

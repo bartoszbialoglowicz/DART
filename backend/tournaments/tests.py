@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
-from players.models import Player
+from players.models import Player, PlayerContact
 
 from .models import MatchStatistic, Stage, Tournament, TournamentCycle, CycleEvent
 from .services import EntrySpec, create_tournament, record_result
@@ -468,6 +468,8 @@ class TournamentPrivacyTests(AuthMixin, APITestCase):
 
         participant_player = Player.objects.create(user=self.participant, first_name='Part', last_name='Icipant')
         other = make_players(self.owner, ['B'])[0]
+        # The organizer may only enter a registered player who gave them their code.
+        PlayerContact.objects.create(owner=self.owner, player=participant_player)
 
         self.public_tournament = make_tournament(self.owner)
         self.private_tournament = create_tournament(

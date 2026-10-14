@@ -15,6 +15,7 @@ from . import services
 from .services import TournamentError
 from .services.cycles import compute_cycle_standings
 from core.permissions import IsOwnerOrReadOnly
+from players.linking import identity_ids
 
 
 def _error(exc: TournamentError) -> Response:
@@ -42,7 +43,8 @@ class TournamentViewSet(viewsets.ModelViewSet):
         q = Q(is_private=False) | Q(owner=user)
         player = getattr(user, 'player_profile', None)
         if player:
-            q |= Q(pk__in=Tournament.objects.filter(entries__player=player).values('pk'))
+            # The profile and every account-less player linked to it.
+            q |= Q(pk__in=Tournament.objects.filter(entries__player__in=identity_ids(player)).values('pk'))
         return qs.filter(q)
 
     def get_serializer_class(self):
