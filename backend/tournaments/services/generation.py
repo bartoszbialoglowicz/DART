@@ -286,7 +286,6 @@ def create_tournament(
         tournament = Tournament.objects.create(
             owner=owner, name=name, format=format, match_format=match_format,
             board_count=board_count or None, is_private=is_private, start_date=start_date,
-            bracket={},
         )
         created = TournamentEntry.objects.bulk_create(_entry_for(tournament, p) for p in players)
         _build_structure(tournament, created, group_size, phase_configs, rng)

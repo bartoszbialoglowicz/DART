@@ -1,8 +1,7 @@
 """Converts every legacy `Tournament.bracket` JSON into the normalized models.
 
 Never fails the deploy on data it can't link: unmatched statistics are kept
-(with `match`/`entry` left NULL) and listed in the printed report. Run
-`manage.py import_brackets --dry-run` beforehand to see that report.
+(with `match`/`entry` left NULL) and listed in the printed report.
 """
 from types import SimpleNamespace
 

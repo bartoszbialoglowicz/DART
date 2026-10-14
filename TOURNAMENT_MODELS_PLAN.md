@@ -125,6 +125,8 @@ Ustalony format meczu to `round.match_format`, a gdy go brak: `stage.match_forma
 
 ### `MatchStatistic` (przejściowo rozszerzony)
 
+> Stan po etapie 6: `match_code` i `player_name` **zostają** jako migawka (kształt API `match_id` / `player_name` i 6 starych wierszy z `match = NULL` z turniejów #18–20). Usunięcie ich wymaga decyzji, co zrobić z tymi 6 wierszami.
+
 - Dochodzą `match` FK i `entry` FK.
 - `player` FK zostaje jako denormalizacja (`my_stats` agreguje po nim; trzymane zgodnie z `entry.player`).
 - Po migracji usuwamy `match_id: str` i `player_name`, a unikalność to `(match, entry)`.
@@ -257,9 +259,12 @@ Każdy etap kończy się zielonymi testami i działającą aplikacją.
 | 3 | Migracja danych | `legacy_import.py` + migracja 0014 + komenda `verify_brackets` + 2 testy; zweryfikowane na zrzucie (§5) | ✅ |
 | 4 | API | komendy, kompatybilny `bracket` w odczycie, lekka lista, widoczność / `my_events` / cykle (`services/cycles.py`) na modelach; `tests.py` przepisane (132 testy backendu zielone, w tym 6 wcześniej czerwonych); punktacja cyklu ze zrzutu zgodna ze starą | ✅ |
 | 5 | Frontend | przełączenie na komendy (tabela w §6), tabela grup z serwera (`group.standings`); `npm run build` OK, `lint:ui` 0 uwag, ESLint bez nowych błędów. **Nie przeklikane w przeglądarce** — patrz §9 | ✅ |
-| 6 | Sprzątanie | `bracket` → `legacy_bracket`, potem drop; usunięcie `MatchLeg`, `TournamentParticipant`, `sync_participants`, helperów JSON, starych kolumn `MatchStatistic` | ☐ |
+| 6 | Sprzątanie | migracja 0015: `bracket` → `legacy_bracket` (nullable, nieczytany, do usunięcia w kolejnym wydaniu); usunięte `MatchLeg`, `TournamentParticipant`, `sync_participants`, helpery JSON, stara punktacja cykli, komenda `verify_brackets` i testy importu; unikalność statystyk to `(match, entry)`. Zweryfikowane na kopii produkcji: 71/71 publicznych drabinek identycznych z produkcją. **Niewdrożone** | ✅ |
+| 6b | Drop `legacy_bracket` | jedna migracja `RemoveField`, gdy nikt nie zgłosi rozbieżności | ☐ |
 | 7 | Konta ↔ słupy | `Player.merged_into` (FK self), `PlayerClaim` (prośba → zatwierdzenie przez właściciela słupa), statystyki i historia po graczu kanonicznym; ujednolicenie placeholderów w ligach (`LeagueMember.player = NULL` → słup) | ☐ |
 | 8 | Kreator / drabinka | `structure` endpoint; `Stage.config` (awansujący z grup, najlepsze 3. miejsca, mecz o 3. miejsce, play-in); ręczne rozstawienie przez edycję `*_source` / `*_entry` w szkicu; walidacja grafu (brak cykli, każdy slot ma dokładnie jedno źródło) | ☐ |
+
+> ✅ **Etapy 1–5 wdrożone na produkcję 2026-10-14 ok. 22:10** (`docker compose up -d --build` z katalogu roboczego `feat/palette-a`: paleta A + refaktor + niezacommitowane zmiany UI). Raport migracji: 106 turniejów, 4741 meczów, 7 nowych słupów, 3245 statystyk powiązanych, 6 osieroconych (#18–20). `verify_brackets` na produkcji: OK. Kopia sprzed wdrożenia: `~/backups/dart/backup_dart_2026-10-14_2209_predeploy.dump`. Commit refaktoru: `aef61b5` na `feat/tournament-models` (od `master`).
 
 > ⚠️ **Nie wdrażać etapów 1–3 samodzielnie.** Migracja 0014 jest jednorazowa (idempotentna: pomija turnieje, które mają już fazy). Gdyby poszła na produkcję, gdy API wciąż zapisuje JSON, modele by się zdezaktualizowały, a nowe turnieje nie zostałyby zaimportowane.
 
@@ -298,3 +303,8 @@ Każdy etap kończy się zielonymi testami i działającą aplikacją.
 - Wyniku nie da się zapisać w niezatwierdzonym szkicu (dotąd blokował to tylko UI).
 - Statystyki meczu zapisują się dopiero po przyjęciu wyniku przez serwer (odrzucony wynik nie zostawia osieroconych statystyk).
 - Placeholder z kreatora tworzy gracza bez konta (słup), widocznego na liście graczy jak każdy słup.
+
+## 11. Uwagi do etapu 6
+
+- **Cofnięcie migracji 0015** działa tylko do momentu utworzenia pierwszego nowego turnieju: nowe turnieje mają `legacy_bracket = NULL`, a stare pole `bracket` było `NOT NULL`. Po wdrożeniu realnym powrotem jest kopia bazy.
+- **`legacy_import.py` zostaje**, bo importuje go migracja 0014 (na pustej bazie nic nie robi). Działa wyłącznie na modelach historycznych.

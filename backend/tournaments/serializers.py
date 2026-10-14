@@ -23,20 +23,15 @@ class TournamentListSerializer(serializers.ModelSerializer):
 
 
 class TournamentSerializer(TournamentListSerializer):
-    """Detail: the bracket in the legacy BracketData shape, built from the
-    normalized models. Legs live on the matches now, so `match_legs` is
-    always empty (kept so older clients still parse the response)."""
-    bracket    = serializers.SerializerMethodField()
-    match_legs = serializers.SerializerMethodField()
+    """Detail: the bracket in the BracketData shape the UI renders, built
+    from the normalized models (services.bracket_view)."""
+    bracket = serializers.SerializerMethodField()
 
     def get_bracket(self, obj):
         return build_bracket(obj)
 
-    def get_match_legs(self, obj):
-        return {}
-
     class Meta(TournamentListSerializer.Meta):
-        fields = TournamentListSerializer.Meta.fields + ['bracket', 'match_legs']
+        fields = TournamentListSerializer.Meta.fields + ['bracket']
         read_only_fields = fields
 
 
