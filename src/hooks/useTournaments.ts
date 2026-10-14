@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { tournamentsApi } from '../api/tournaments';
+import { tournamentsApi, type CreateTournamentInput, type MatchResultInput, type Tournament } from '../api/tournaments';
 import { statisticsApi } from '../api/statistics';
-import type { BracketData, CurrentLeg, LegRecord } from '../types/bracket';
+import type { CurrentLeg, LegRecord } from '../types/bracket';
 
 export const tournamentKeys = {
   all:        ()           => ['tournaments']                       as const,
@@ -38,20 +38,19 @@ export function useTournamentStatistics(id: number, refetchInterval?: number) {
 export function useCreateTournament() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ bracket, is_private, start_date }: {
-      bracket:    BracketData;
-      is_private: boolean;
-      start_date: string | null;
-    }) => tournamentsApi.create(bracket, { is_private, start_date }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: tournamentKeys.list() }),
+    mutationFn: (input: CreateTournamentInput) => tournamentsApi.create(input),
+    onSuccess: (saved) => {
+      qc.setQueryData(tournamentKeys.detail(saved.id), saved);
+      qc.invalidateQueries({ queryKey: tournamentKeys.list() });
+    },
   });
 }
 
-export function useUpdateTournament() {
+/** Every bracket command returns the updated tournament — cache it directly. */
+function useTournamentCommand<V>(run: (vars: V) => Promise<Tournament>) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, bracket }: { id: number; bracket: BracketData }) =>
-      tournamentsApi.update(id, bracket),
+    mutationFn: run,
     onSuccess: (saved) => {
       qc.setQueryData(tournamentKeys.detail(saved.id), saved);
       qc.invalidateQueries({ queryKey: tournamentKeys.list() });
@@ -60,14 +59,22 @@ export function useUpdateTournament() {
 }
 
 export function useConfirmTournamentDraft() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => tournamentsApi.confirmDraft(id),
-    onSuccess: (saved) => {
-      qc.setQueryData(tournamentKeys.detail(saved.id), saved);
-      qc.invalidateQueries({ queryKey: tournamentKeys.list() });
-    },
-  });
+  return useTournamentCommand((id: number) => tournamentsApi.confirmDraft(id));
+}
+
+export function useRedrawTournament() {
+  return useTournamentCommand((id: number) => tournamentsApi.redraw(id));
+}
+
+export function useAdvanceGroups() {
+  return useTournamentCommand((id: number) => tournamentsApi.advanceGroups(id));
+}
+
+export function useRecordMatchResult() {
+  return useTournamentCommand(
+    ({ id, matchId, ...input }: { id: number; matchId: string } & MatchResultInput) =>
+      tournamentsApi.recordResult(id, matchId, input),
+  );
 }
 
 export function useUpdateMatchLeg() {

@@ -149,7 +149,11 @@ class MatchLeg(models.Model):
 
 class MatchStatistic(models.Model):
     tournament     = models.ForeignKey('Tournament', on_delete=models.CASCADE, related_name='statistics')
-    match_id       = models.CharField(max_length=20)
+    match_code     = models.CharField(max_length=50)
+    # Normalized links — filled for every new row and by the bracket data
+    # migration; match_code / player_name go away once nothing reads them.
+    match          = models.ForeignKey('Match', on_delete=models.CASCADE, null=True, blank=True, related_name='statistics')
+    entry          = models.ForeignKey('TournamentEntry', on_delete=models.CASCADE, null=True, blank=True, related_name='statistics')
     player         = models.ForeignKey(
         'players.Player',
         on_delete=models.SET_NULL,
@@ -169,19 +173,19 @@ class MatchStatistic(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=['tournament', 'match_id', 'player'],
+                fields=['tournament', 'match_code', 'player'],
                 condition=Q(player__isnull=False),
                 name='unique_stat_by_player_id',
             ),
             models.UniqueConstraint(
-                fields=['tournament', 'match_id', 'player_name'],
+                fields=['tournament', 'match_code', 'player_name'],
                 condition=Q(player__isnull=True),
                 name='unique_stat_by_player_name',
             ),
         ]
 
     def __str__(self):
-        return f'{self.tournament} / {self.match_id} / {self.player_name}'
+        return f'{self.tournament} / {self.match_code} / {self.player_name}'
 
 
 class TournamentParticipant(models.Model):
@@ -265,6 +269,11 @@ class Tournament(models.Model):
         blank=True,
         related_name='tournaments',
     )
+    # Default match format {sets, legs, max_darts_per_leg?} — a Stage or Round
+    # may override it (see resolve_match_format).
+    match_format = models.JSONField(default=dict)
+    # Venue board count at creation time — groups are assigned boards round-robin.
+    board_count  = models.PositiveIntegerField(null=True, blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)
     updated_at  = models.DateTimeField(auto_now=True)
 
@@ -273,6 +282,176 @@ class Tournament(models.Model):
 
     def __str__(self):
         return self.name
+
+
+# ── Tournament structure ──────────────────────────────────────────────────────
+# Normalized replacement for the `bracket` JSON: entries (who plays), stages
+# (group phase / knockout), groups and rounds inside a stage, and matches that
+# reference entries directly or via a `source` (winner of match X, place N in
+# group A). See TOURNAMENT_MODELS_PLAN.md.
+
+class TournamentEntry(models.Model):
+    """One participant of a tournament. `player` is always set on creation —
+    a name-only roster entry becomes an account-less Player ("słup") owned by
+    the organizer — and only goes null if that Player is later deleted. The
+    name/average/cpu fields are a snapshot from the day of the tournament."""
+    tournament       = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name='entries')
+    player           = models.ForeignKey(
+        'players.Player',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='tournament_entries',
+    )
+    display_name     = models.CharField(max_length=200)
+    average_snapshot = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    is_cpu           = models.BooleanField(default=False)
+    seed             = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tournament', 'player'],
+                condition=Q(player__isnull=False),
+                name='unique_entry_player',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.display_name} @ {self.tournament}'
+
+
+class Stage(models.Model):
+    KIND_CHOICES = [('groups', 'Grupy'), ('knockout', 'Drabinka')]
+
+    tournament   = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name='stages')
+    order        = models.PositiveIntegerField()
+    kind         = models.CharField(max_length=20, choices=KIND_CHOICES)
+    label        = models.CharField(max_length=100, blank=True)
+    match_format = models.JSONField(null=True, blank=True)
+    starts_at    = models.DateTimeField(null=True, blank=True)
+    # groups:   {'group_size': int, 'advance_per_group': int}
+    # knockout: {'size': int}
+    config       = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['order']
+        constraints = [
+            models.UniqueConstraint(fields=['tournament', 'order'], name='unique_stage_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.tournament} / {self.label or self.kind}'
+
+
+class Group(models.Model):
+    stage = models.ForeignKey(Stage, on_delete=models.CASCADE, related_name='groups')
+    order = models.PositiveIntegerField()
+    label = models.CharField(max_length=10)
+    board = models.PositiveIntegerField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['order']
+        constraints = [
+            models.UniqueConstraint(fields=['stage', 'order'], name='unique_group_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.stage} / {self.label}'
+
+
+class GroupMember(models.Model):
+    group    = models.ForeignKey(Group, on_delete=models.CASCADE, related_name='members')
+    entry    = models.ForeignKey(TournamentEntry, on_delete=models.CASCADE, related_name='group_memberships')
+    position = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ['position']
+        constraints = [
+            models.UniqueConstraint(fields=['group', 'entry'], name='unique_group_entry'),
+            models.UniqueConstraint(fields=['group', 'position'], name='unique_group_position'),
+        ]
+
+    def __str__(self):
+        return f'{self.group} / {self.entry.display_name}'
+
+
+class Round(models.Model):
+    TIER_CHOICES = [
+        ('final',        'Finał'),
+        ('semifinal',    'Półfinał'),
+        ('quarterfinal', 'Ćwierćfinał'),
+        ('other',        'Inna'),
+    ]
+
+    stage        = models.ForeignKey(Stage, on_delete=models.CASCADE, related_name='rounds')
+    order        = models.PositiveIntegerField()
+    # Phase-config key the wizard uses: 'round-0' (knockout), 'r0' (playoff).
+    code         = models.CharField(max_length=20)
+    label        = models.CharField(max_length=100)
+    starts_at    = models.DateTimeField(null=True, blank=True)
+    match_format = models.JSONField(null=True, blank=True)
+    # Placement credited to a player who loses in this round (winner of a
+    # 'final' round is the tournament winner) — stored, not derived from the
+    # round index, so custom bracket layouts can set it explicitly.
+    tier         = models.CharField(max_length=20, choices=TIER_CHOICES, default='other')
+
+    class Meta:
+        ordering = ['order']
+        constraints = [
+            models.UniqueConstraint(fields=['stage', 'order'], name='unique_round_order'),
+        ]
+
+    def __str__(self):
+        return f'{self.stage} / {self.label}'
+
+
+class Match(models.Model):
+    STATUS_CHOICES = [
+        ('pending',  'Oczekuje'),
+        ('live',     'Na żywo'),
+        ('finished', 'Zakończony'),
+        ('bye',      'Wolny los'),
+    ]
+    WINNER_CHOICES = [('', '—'), ('top', 'Góra'), ('bottom', 'Dół')]
+
+    tournament    = models.ForeignKey(Tournament, on_delete=models.CASCADE, related_name='matches')
+    stage         = models.ForeignKey(Stage, on_delete=models.CASCADE, related_name='matches')
+    round         = models.ForeignKey(Round, on_delete=models.CASCADE, null=True, blank=True, related_name='matches')
+    group         = models.ForeignKey(Group, on_delete=models.CASCADE, null=True, blank=True, related_name='matches')
+    # Public id within the tournament ('r0-m3', 'group-1-m4') — kept from the
+    # bracket JSON so URLs and statistics keep working.
+    code          = models.CharField(max_length=50)
+    order         = models.PositiveIntegerField()
+
+    top_entry     = models.ForeignKey(TournamentEntry, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    bottom_entry  = models.ForeignKey(TournamentEntry, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    # Where a slot's entry comes from once it's known:
+    #   {'kind': 'winner'|'loser', 'match': '<code>'}
+    #   {'kind': 'group', 'group': '<label>', 'place': <1-based>}
+    # null = seeded directly at draw time (or an empty slot = bye).
+    top_source    = models.JSONField(null=True, blank=True)
+    bottom_source = models.JSONField(null=True, blank=True)
+
+    status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    winner        = models.CharField(max_length=10, choices=WINNER_CHOICES, blank=True, default='')
+    # Headline score: legs when the format is a single set, sets otherwise.
+    top_score     = models.PositiveIntegerField(null=True, blank=True)
+    bottom_score  = models.PositiveIntegerField(null=True, blank=True)
+    legs          = models.JSONField(default=list, blank=True)
+    current_leg   = models.JSONField(null=True, blank=True)
+    finished_at   = models.DateTimeField(null=True, blank=True)
+    updated_at    = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['stage__order', 'group__order', 'round__order', 'order']
+        constraints = [
+            models.UniqueConstraint(fields=['tournament', 'code'], name='unique_match_code'),
+        ]
+
+    def __str__(self):
+        return f'{self.tournament} / {self.code}'
 
 
 # ── Tournament cycles ──────────────────────────────────────────────────────────
@@ -425,8 +604,11 @@ def _match_win_counts(bracket: dict) -> dict:
     return wins
 
 
-def compute_cycle_standings(cycle: TournamentCycle) -> list[dict]:
+def compute_cycle_standings_from_json(cycle: TournamentCycle) -> list[dict]:
     """
+    LEGACY — reads the bracket JSON; kept only so `verify_brackets` can compare
+    it with services.cycles.compute_cycle_standings. Removed in stage 6.
+
     One row per player who scored at least one point across the cycle's decided
     events: {'player_id', 'player_name', 'total_points', 'points_by_event': {event_id: points}}.
     Sorted by total_points descending.

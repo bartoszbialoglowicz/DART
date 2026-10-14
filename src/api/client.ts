@@ -13,6 +13,20 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.status = status;
   }
+
+  /** Human-readable message from a DRF error body ({detail} or {field: msg}). */
+  get detail(): string {
+    try {
+      const body = JSON.parse(this.message);
+      if (typeof body === 'string') return body;
+      if (body?.detail) return String(body.detail);
+      const first = Object.values(body ?? {})[0];
+      if (first) return Array.isArray(first) ? String(first[0]) : String(first);
+    } catch {
+      // not JSON — fall through to the raw message
+    }
+    return this.message;
+  }
 }
 
 async function parseError(res: Response): Promise<string> {

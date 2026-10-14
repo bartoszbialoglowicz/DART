@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { BracketMatch, Group, GroupsBracketData, MatchSlot } from '../../types/bracket';
 import type { MatchFormat } from '../../types/tournament';
-import { areGroupsComplete, computeGroupStandings, type GroupStanding } from '../../utils/bracket';
+import { areGroupsComplete, groupStandings, type GroupStanding } from '../../utils/bracket';
 import { Card } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { cn } from '../ui/cn';
@@ -94,7 +94,7 @@ function GroupCard({
   onSimulate?:    (matchId: string) => void;
   onEnterResult?: (matchId: string, top: number, bottom: number) => void;
 }) {
-  const standings = computeGroupStandings(group);
+  const standings = groupStandings(group);
   const matches   = group.matches ?? [];
 
   return (
@@ -147,7 +147,7 @@ function StandingsTable({ standings, qualifiers }: { standings: GroupStanding[];
         <span className="w-8 text-center">Pkt</span>
       </div>
       {standings.map((s, i) => (
-        <StandingRow key={s.slot.playerId} standing={s} rank={i + 1} advances={i < qualifiers} />
+        <StandingRow key={s.entryId} standing={s} rank={i + 1} advances={i < qualifiers} />
       ))}
     </div>
   );

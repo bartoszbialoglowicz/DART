@@ -1,30 +1,39 @@
 from django.db import transaction
-from django.db.models import Max, Q
+from django.db.models import Count, Max, Q
 from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
-from .models import (
-    MatchLeg, MatchStatistic, Tournament, TournamentCycle, CycleEvent,
-    _bracket_has_pending_matches, _iter_matches, compute_cycle_standings,
-    find_bot_simulation_lock_violations,
-    find_locked_result_changes, strip_legs_from_bracket, sync_participants,
-)
+from .models import Match, MatchStatistic, Tournament, TournamentCycle, CycleEvent
 from .serializers import (
-    MatchStatisticSerializer, TournamentSerializer,
+    MatchResultSerializer, MatchStatisticSerializer, TournamentCreateSerializer,
+    TournamentListSerializer, TournamentSerializer, TournamentUpdateSerializer,
     TournamentCycleSerializer, CycleEventSerializer,
 )
+from . import services
+from .services import TournamentError
+from .services.cycles import compute_cycle_standings
 from core.permissions import IsOwnerOrReadOnly
 
 
+def _error(exc: TournamentError) -> Response:
+    detail = exc.args[0] if exc.args else 'Błąd'
+    return Response(detail if isinstance(detail, dict) else {'detail': detail}, status=exc.status_code)
+
+
 class TournamentViewSet(viewsets.ModelViewSet):
-    serializer_class   = TournamentSerializer
-    http_method_names  = ['get', 'post', 'patch', 'put', 'delete', 'head', 'options']
+    http_method_names  = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
     permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
 
     def get_queryset(self):
-        qs   = Tournament.objects.select_related('owner').prefetch_related('match_legs').all()
+        # Explicit order_by: Django drops Meta.ordering from GROUP BY queries,
+        # and the list is paginated — newest tournaments must be on page 1.
+        qs   = (
+            Tournament.objects.select_related('owner')
+            .annotate(player_count=Count('entries', distinct=True))
+            .order_by('-created_at')
+        )
         user = self.request.user
 
         if not user.is_authenticated:
@@ -33,87 +42,99 @@ class TournamentViewSet(viewsets.ModelViewSet):
         q = Q(is_private=False) | Q(owner=user)
         player = getattr(user, 'player_profile', None)
         if player:
-            q |= Q(participants__player=player)
-        return qs.filter(q).distinct()
+            q |= Q(pk__in=Tournament.objects.filter(entries__player=player).values('pk'))
+        return qs.filter(q)
 
-    def perform_create(self, serializer):
-        serializer.save(owner=self.request.user)
-        sync_participants(serializer.instance)
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return TournamentListSerializer
+        if self.action == 'partial_update':
+            return TournamentUpdateSerializer
+        return TournamentSerializer
 
-    def perform_update(self, serializer):
-        bracket = serializer.validated_data.get('bracket')
-        if bracket:
-            locked = find_locked_result_changes(serializer.instance.bracket, bracket)
-            if locked:
-                raise ValidationError({
-                    'bracket': f"Match result already recorded and cannot be changed: {', '.join(locked)}",
-                })
+    def _detail(self, tournament, status_code=status.HTTP_200_OK):
+        tournament = self.get_queryset().get(pk=tournament.pk)
+        return Response(TournamentSerializer(tournament, context=self.get_serializer_context()).data, status=status_code)
 
-            simulating_ids = {
-                ml.match_id for ml in MatchLeg.objects.filter(tournament=serializer.instance)
-                if ml.current_leg
-            }
-            blocked = find_bot_simulation_lock_violations(serializer.instance.bracket, bracket, simulating_ids)
-            if blocked:
-                raise ValidationError({
-                    'bracket': f"Match is currently being simulated live: {', '.join(blocked)}",
-                })
+    # ── Create / metadata ─────────────────────────────────────────────────────
 
-            cleaned, legs_dict = strip_legs_from_bracket(bracket)
+    def create(self, request, *args, **kwargs):
+        serializer = TournamentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            tournament = services.create_tournament(owner=request.user, **serializer.validated_data)
+        except TournamentError as exc:
+            return _error(exc)
+        return self._detail(tournament, status.HTTP_201_CREATED)
 
-            for mid, data in legs_dict.items():
-                MatchLeg.objects.update_or_create(
-                    tournament=serializer.instance,
-                    match_id=mid,
-                    defaults=data,
-                )
+    def update(self, request, *args, **kwargs):
+        if not kwargs.get('partial'):
+            return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+        return self.partial_update(request, *args, **kwargs)
 
-            # Force-clear the live-simulation lock for any match this update newly
-            # decides, regardless of what stray `currentLeg` the client's bracket
-            # snapshot happened to carry — the client also clears its own copy via
-            # a separate match-legs request first, but that's just a best-effort
-            # ordering hint; this is the actual source of truth. Cleared directly
-            # against the DB (not via legs_dict's defaults) so an already-saved
-            # `legs` history for a match_id absent from this payload is never
-            # clobbered back to empty.
-            old_results = {m['id']: m.get('result') for m in _iter_matches(serializer.instance.bracket) if m.get('id')}
-            newly_decided_ids = {
-                m['id'] for m in _iter_matches(bracket)
-                if m.get('id') and m.get('result') and not old_results.get(m['id'])
-            }
-            if newly_decided_ids:
-                MatchLeg.objects.filter(
-                    tournament=serializer.instance, match_id__in=newly_decided_ids,
-                ).update(current_leg=None)
+    def partial_update(self, request, *args, **kwargs):
+        tournament = self.get_object()
+        serializer = TournamentUpdateSerializer(tournament, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return self._detail(tournament)
 
-            serializer.save(bracket=cleaned, is_active=_bracket_has_pending_matches(cleaned))
-            sync_participants(serializer.instance)
-        else:
-            serializer.save(is_active=serializer.instance.is_active)
+    # ── Draft ─────────────────────────────────────────────────────────────────
 
     @action(detail=True, methods=['post'], url_path='confirm-draft')
     def confirm_draft(self, request, pk=None):
         tournament = self.get_object()
-        if tournament.owner != request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
         tournament.bracket_confirmed = True
         tournament.save(update_fields=['bracket_confirmed'])
-        return Response(TournamentSerializer(tournament, context={'request': request}).data)
+        return self._detail(tournament)
 
-    @action(detail=True, methods=['put', 'patch'], url_path=r'match-legs/(?P<match_id>[^/.]+)')
+    @action(detail=True, methods=['post'], url_path='redraw')
+    def redraw(self, request, pk=None):
+        tournament = self.get_object()
+        try:
+            services.redraw(tournament)
+        except TournamentError as exc:
+            return _error(exc)
+        return self._detail(tournament)
+
+    # ── Matches ───────────────────────────────────────────────────────────────
+
+    def _match(self, tournament, code) -> Match:
+        return get_object_or_404(Match, tournament=tournament, code=code)
+
+    @action(detail=True, methods=['post'], url_path=r'matches/(?P<code>[^/]+)/result')
+    def record_result(self, request, pk=None, code=None):
+        tournament = self.get_object()
+        serializer = MatchResultSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            services.record_result(self._match(tournament, code), **serializer.validated_data)
+        except TournamentError as exc:
+            return _error(exc)
+        return self._detail(tournament)
+
+    @action(detail=True, methods=['put', 'patch'], url_path=r'match-legs/(?P<match_id>[^/]+)')
     def update_match_leg(self, request, pk=None, match_id=None):
         tournament = self.get_object()
-        if tournament.owner != request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        obj, _ = MatchLeg.objects.update_or_create(
-            tournament=tournament,
-            match_id=match_id,
-            defaults={
-                'legs':        request.data.get('legs', []),
-                'current_leg': request.data.get('currentLeg'),
-            },
-        )
-        return Response({'match_id': obj.match_id, 'legs': obj.legs, 'currentLeg': obj.current_leg})
+        legs = request.data.get('legs', [])
+        if not isinstance(legs, list):
+            raise ValidationError({'legs': 'Oczekiwano listy.'})
+        match = services.save_legs(self._match(tournament, match_id), legs=legs, current_leg=request.data.get('currentLeg'))
+        return Response({'match_id': match.code, 'legs': match.legs, 'currentLeg': match.current_leg})
+
+    @action(detail=True, methods=['post'], url_path='advance-groups')
+    def advance_groups(self, request, pk=None):
+        tournament = self.get_object()
+        stage = tournament.stages.filter(kind='groups').first()
+        if stage is None:
+            return Response({'detail': 'Ten turniej nie ma fazy grupowej.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            services.advance_groups(stage)
+        except TournamentError as exc:
+            return _error(exc)
+        return self._detail(tournament)
+
+    # ── Statistics ────────────────────────────────────────────────────────────
 
     @action(detail=True, methods=['get', 'put'], url_path='statistics')
     def statistics(self, request, pk=None):
@@ -123,48 +144,43 @@ class TournamentViewSet(viewsets.ModelViewSet):
             qs = MatchStatistic.objects.filter(tournament=tournament)
             return Response(MatchStatisticSerializer(qs, many=True).data)
 
-        if tournament.owner != request.user:
-            return Response(status=status.HTTP_403_FORBIDDEN)
+        items   = request.data if isinstance(request.data, list) else []
+        matches = {m.code: m for m in tournament.matches.all()}
+        entries = list(tournament.entries.all())
+        saved   = []
 
-        items = request.data if isinstance(request.data, list) else []
-        saved = []
+        def find_entry(player_id, player_name):
+            # Slot playerId: the Player's id, or -entry.id for an entry whose
+            # player was deleted (see bracket_view._slot).
+            if player_id and player_id > 0:
+                return next((e for e in entries if e.player_id == player_id), None)
+            if player_id and player_id < 0:
+                return next((e for e in entries if e.id == -player_id), None)
+            named = [e for e in entries if e.display_name == player_name]
+            return named[0] if len(named) == 1 else None
 
         with transaction.atomic():
             for item in items:
-                match_id    = item.get('match_id', '')
-                player_name = item.get('player_name', '')
-                player_id   = item.get('player_id') or None
-                if not match_id or not player_name:
+                match = matches.get(item.get('match_id', ''))
+                entry = find_entry(item.get('player_id') or None, item.get('player_name', ''))
+                if match is None or entry is None:
                     continue
 
-                stat_defaults = {
-                    'match_average':   item.get('match_average', 0),
-                    'count_180':       item.get('count_180', 0),
-                    'high_checkouts':  item.get('high_checkouts', 0),
-                    'short_legs':      item.get('short_legs', 0),
-                    'double_attempts': item.get('double_attempts', 0),
-                    'double_hits':     item.get('double_hits', 0),
-                    'darts_per_leg':   item.get('darts_per_leg', 0),
-                }
-
-                if player_id:
-                    # Remove any orphan record saved earlier without player_id for
-                    # the same (tournament, match_id, player_name) to avoid the
-                    # unique-constraint gap where both a FK record and a name-only
-                    # record can coexist for the same logical player+match.
-                    MatchStatistic.objects.filter(
-                        tournament=tournament,
-                        match_id=match_id,
-                        player_name=player_name,
-                        player__isnull=True,
-                    ).delete()
-                    lookup   = {'tournament': tournament, 'match_id': match_id, 'player_id': player_id}
-                    defaults = {'player_name': player_name, **stat_defaults}
-                else:
-                    lookup   = {'tournament': tournament, 'match_id': match_id, 'player_name': player_name, 'player': None}
-                    defaults = stat_defaults
-
-                obj, _ = MatchStatistic.objects.update_or_create(**lookup, defaults=defaults)
+                obj, _ = MatchStatistic.objects.update_or_create(
+                    tournament=tournament, match=match, entry=entry,
+                    defaults={
+                        'match_code':      match.code,
+                        'player':          entry.player,
+                        'player_name':     entry.display_name,
+                        'match_average':   item.get('match_average', 0),
+                        'count_180':       item.get('count_180', 0),
+                        'high_checkouts':  item.get('high_checkouts', 0),
+                        'short_legs':      item.get('short_legs', 0),
+                        'double_attempts': item.get('double_attempts', 0),
+                        'double_hits':     item.get('double_hits', 0),
+                        'darts_per_leg':   item.get('darts_per_leg', 0),
+                    },
+                )
                 saved.append(obj)
 
         return Response(MatchStatisticSerializer(saved, many=True).data)

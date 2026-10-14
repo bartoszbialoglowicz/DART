@@ -4,8 +4,8 @@ import { LeagueSetupStepper } from '../components/league/LeagueSetupStepper';
 import { TournamentRosterStep } from '../components/tournament/TournamentRosterStep';
 import { TournamentPhasesStep } from '../components/tournament/TournamentPhasesStep';
 import { VenuePicker } from '../components/venue/VenuePicker';
-import { generateBracket } from '../utils/bracket';
 import { useCreateTournament } from '../hooks/useTournaments';
+import { ApiError } from '../api/client';
 import type { TournamentFormat, TournamentPlayer } from '../types/tournament';
 import type { PhaseConfig } from '../types/tournament';
 import type { Venue } from '../types/venue';
@@ -112,20 +112,22 @@ export function TournamentSetupPage() {
       legs,
       ...(resolvedMaxDartsPerLeg != null ? { max_darts_per_leg: resolvedMaxDartsPerLeg } : {}),
     };
-    const config = {
-      name:               name.trim(),
-      format,
-      matchFormat,
-      groupSize,
-      phaseConfigs,
-      players:            entries,
-      is_private:         isPrivate,
-      start_date:         phaseConfigs['round-0']?.date ?? phaseConfigs['groups']?.date ?? null,
-      venue_board_count:  venue?.board_count ?? null,
-    };
-    const bracket = generateBracket(config);
+    // The server draws the bracket; placeholders (negative ids) go as names
+    // and become account-less players that can later be linked to an account.
     createTournament.mutate(
-      { bracket, is_private: config.is_private, start_date: config.start_date ?? null },
+      {
+        name:          name.trim(),
+        format,
+        is_private:    isPrivate,
+        start_date:    phaseConfigs['round-0']?.date ?? phaseConfigs['groups']?.date ?? null,
+        match_format:  matchFormat,
+        group_size:    groupSize,
+        phase_configs: phaseConfigs,
+        board_count:   venue?.board_count ?? null,
+        entries:       entries.map(e => e.id < 0
+          ? { name: [e.first_name, e.last_name].filter(Boolean).join(' ') }
+          : { player_id: e.id }),
+      },
       { onSuccess: (saved) => navigate(`/turnieje/${saved.id}`) },
     );
   }
@@ -250,6 +252,13 @@ export function TournamentSetupPage() {
         onFinalize={handleCreate}
         finalizeLabel="Utwórz turniej"
       />
+      {createTournament.error && (
+        <p className="mt-4 text-sm text-score-down-text">
+          Nie udało się utworzyć turnieju: {createTournament.error instanceof ApiError
+            ? createTournament.error.detail
+            : createTournament.error.message}
+        </p>
+      )}
     </div>
   );
 }

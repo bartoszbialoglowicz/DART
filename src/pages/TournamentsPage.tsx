@@ -88,7 +88,7 @@ export function TournamentsPage() {
               title={t.name}
               description={
                 <>
-                  {t.format === 'knockout' ? 'SKO' : 'Grupy'} · {t.bracket.playerCount} graczy · {new Date(t.created_at).toLocaleDateString('pl-PL')}
+                  {t.format === 'knockout' ? 'SKO' : 'Grupy'} · {t.player_count} graczy · {new Date(t.created_at).toLocaleDateString('pl-PL')}
                   {t.owner_username && <> · <span className="text-content-faint">{t.owner_username}</span></>}
                   {t.is_private && <> · <Tag>Prywatny</Tag></>}
                 </>

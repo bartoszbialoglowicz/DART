@@ -134,7 +134,7 @@ class PlayerViewSet(viewsets.ModelViewSet):
         tournaments = (
             Tournament.objects
             .filter(
-                participants__player=player,
+                entries__player=player,
                 start_date__isnull=False,
                 start_date__date__gte=today,
             )

@@ -1,55 +1,19 @@
 import { useRef } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTournament, useUpdateMatchLeg, useUpdateTournament } from '../hooks/useTournaments';
+import { useRecordMatchResult, useTournament, useUpdateMatchLeg } from '../hooks/useTournaments';
 import { LiveMatchScreen } from '../components/match/LiveMatchScreen';
 import { LiveMatchViewer } from '../components/match/LiveMatchViewer';
-import { buildManualResult } from '../utils/simulate';
-import { applyResult, applyGroupMatchResult, applyPlayoffResult } from '../utils/bracket';
+import { findMatch, matchFormatOf } from '../utils/bracket';
 import { computeMatchStats } from '../utils/statistics';
 import { statisticsApi } from '../api/statistics';
-import type { BracketData, BracketMatch, CurrentLeg, LegRecord, LegRound } from '../types/bracket';
-import type { MatchFormat } from '../types/tournament';
-
-type MatchContext =
-  | { kind: 'knockout' }
-  | { kind: 'group'; groupId: string };
-
-type FoundMatch = { match: BracketMatch; ctx: MatchContext; matchFormat: MatchFormat };
-
-// Resolves the format that actually applies to this match — a round (or, for
-// groups, a playoff round) can override the tournament's default via the
-// Fazy step, and that override must be honoured here too, not just in the
-// bracket's own read-only "Symuluj"/"Wpisz wynik" paths.
-function findMatch(bracket: BracketData | undefined, matchId: string | undefined): FoundMatch | null {
-  if (!bracket || !matchId) return null;
-
-  if (bracket.format === 'knockout') {
-    for (const round of bracket.rounds) {
-      const match = round.matches.find(m => m.id === matchId);
-      if (match) return { match, ctx: { kind: 'knockout' }, matchFormat: round.matchFormat ?? bracket.matchFormat };
-    }
-  }
-
-  if (bracket.format === 'groups') {
-    for (const group of bracket.groups) {
-      const match = (group.matches ?? []).find(m => m.id === matchId);
-      if (match) return { match, ctx: { kind: 'group', groupId: group.id }, matchFormat: bracket.matchFormat };
-    }
-    for (const round of bracket.playoff?.rounds ?? []) {
-      const match = round.matches.find(m => m.id === matchId);
-      if (match) return { match, ctx: { kind: 'knockout' }, matchFormat: round.matchFormat ?? bracket.matchFormat };
-    }
-  }
-
-  return null;
-}
+import type { CurrentLeg, LegRecord, LegRound } from '../types/bracket';
 
 export function LiveMatchPage() {
   const { id, matchId } = useParams<{ id: string; matchId: string }>();
   const navigate         = useNavigate();
   const { data: tournament, isLoading } = useTournament(Number(id), 5000);
-  const updateTournament = useUpdateTournament();
+  const recordResult     = useRecordMatchResult();
   const updateMatchLeg   = useUpdateMatchLeg();
   const { username }     = useAuth();
 
@@ -80,7 +44,11 @@ export function LiveMatchPage() {
     return <Navigate to={`/turnieje/${id}`} replace />;
   }
 
-  const { match, ctx, matchFormat } = found;
+  const match = found;
+
+  // Resolved by the server — a round (or playoff round) can override the
+  // tournament default via the Fazy step.
+  const matchFormat = matchFormatOf(match, bracket);
 
   if (initialResultRef.current === 'unset') {
     initialResultRef.current = !!match.result;
@@ -123,24 +91,16 @@ export function LiveMatchPage() {
   // auto-save effect) — must not navigate away, since the summary screen is
   // still showing; leaving the page is the "Zamknij" button's job (onClose).
   //
-  // Clearing the live leg lock is awaited before the result is saved: the
-  // backend rejects a bot-vs-bot match result while its live-simulation lock
-  // (MatchLeg.current_leg) is still set, to stop a second device's "Symuluj"
-  // or "Wpisz wynik" racing an in-progress "Symuluj na żywo". Firing both
-  // requests together would leave the lock's clear-order to the network.
-  async function handleResult(topLegs: number, bottomLegs: number) {
-    if (!bracket || !matchId) return;
-    const result = buildManualResult(topLegs, bottomLegs, matchFormat);
-
-    await updateMatchLeg.mutateAsync({ id: Number(id), matchId, legs: completedLegsRef.current, currentLeg: null });
-
-    if (ctx.kind === 'knockout' && bracket.format === 'knockout') {
-      updateTournament.mutate({ id: Number(id), bracket: applyResult(bracket, matchId, result) });
-    } else if (ctx.kind === 'group' && bracket.format === 'groups') {
-      updateTournament.mutate({ id: Number(id), bracket: applyGroupMatchResult(bracket, ctx.groupId, matchId, result) });
-    } else if (ctx.kind === 'knockout' && bracket.format === 'groups' && bracket.playoff) {
-      updateTournament.mutate({ id: Number(id), bracket: applyPlayoffResult(bracket, matchId, result) });
-    }
+  // `live: true` lets the server release this screen's own live-leg lock in
+  // the same transaction that saves the result, so a bot-vs-bot "Symuluj na
+  // żywo" can't be raced by a second device's "Symuluj" / "Wpisz wynik".
+  function handleResult(topLegs: number, bottomLegs: number) {
+    if (!matchId) return;
+    recordResult.mutate({
+      id: Number(id), matchId,
+      top_score: topLegs, bottom_score: bottomLegs,
+      legs: completedLegsRef.current, live: true,
+    });
   }
 
   if (!isOwner) {
