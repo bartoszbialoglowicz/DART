@@ -1,9 +1,12 @@
 import { cn } from '../../ui/cn';
+import { SkillIcon } from '../../ui/SkillIcon';
 
 export function PlayerHeader({
-  name, remaining, legsWon, setsWon, legAvg, matchAvg, isActive, align, onClick,
+  name, remaining, legsWon, setsWon, legAvg, matchAvg, isActive, align, onClick, avg,
 }: {
   name: string; remaining: number; legsWon: number; setsWon?: number;
+  /** Player's rating average — shows their skill-tier medal as a dimmed backdrop. */
+  avg?: number | string | null;
   legAvg?: number; matchAvg?: number;
   isActive: boolean; align: 'left' | 'right';
   onClick?: () => void;
@@ -18,12 +21,22 @@ export function PlayerHeader({
     <div
       onClick={onClick}
       className={cn(
-        'flex min-w-0 flex-1 flex-col px-4 py-3 transition-colors',
+        // isolate: the medal's -z-10 stays inside this header, above its own background.
+        // @container: the remaining score scales with this panel's width.
+        '@container relative isolate flex min-w-0 flex-1 flex-col overflow-hidden px-4 py-3 transition-colors',
         isActive ? 'bg-accent-soft' : 'opacity-60',
         onClick && 'cursor-pointer hover:bg-surface-muted hover:opacity-100',
         align === 'right' ? 'items-end' : 'items-start',
       )}
     >
+      <SkillIcon
+        avg={avg}
+        size="xl"
+        decorative
+        fadeBottom
+        className="pointer-events-none absolute left-1/2 top-0 -z-10 -translate-x-1/2 opacity-25"
+      />
+
       <div className="flex w-full items-start justify-between gap-1">
         {align === 'right' ? (
           <>
@@ -44,7 +57,11 @@ export function PlayerHeader({
         )}
       </div>
 
-      <span className={cn('mt-0.5 font-display text-6xl font-extrabold tabular-nums leading-tight transition-colors', scoreColor)}>
+      <span className={cn(
+        'mt-1 whitespace-nowrap font-display font-extrabold tabular-nums transition-all',
+        isActive ? 'text-remaining' : 'text-remaining-idle',
+        scoreColor,
+      )}>
         {remaining}
       </span>
 

@@ -75,14 +75,14 @@ export function LeagueLiveMatchPage() {
     top: {
       playerId:   homeMember?.player_id ?? null,
       playerName: match.home_name,
-      playerAvg:  null,
+      playerAvg:  homePlayer ? Number(homePlayer.average) : null,
       isCpu:      homeMember?.is_cpu ?? false,
       cpuSigma:   homePlayer ? avgToSigma(Number(homePlayer.average)) : undefined,
     },
     bottom: {
       playerId:   awayMember?.player_id ?? null,
       playerName: match.away_name,
-      playerAvg:  null,
+      playerAvg:  awayPlayer ? Number(awayPlayer.average) : null,
       isCpu:      awayMember?.is_cpu ?? false,
       cpuSigma:   awayPlayer ? avgToSigma(Number(awayPlayer.average)) : undefined,
     },

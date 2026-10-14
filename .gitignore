@@ -38,3 +38,7 @@ profil.png
 *.njsproj
 *.sln
 *.sw?
+
+# Database dumps (contain user accounts and auth tokens)
+backend_data_dump*.json
+*.dump

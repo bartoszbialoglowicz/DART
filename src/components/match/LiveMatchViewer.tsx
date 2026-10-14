@@ -37,6 +37,7 @@ export function LiveMatchViewer({ match, onClose }: Props) {
       <div className="flex shrink-0 border-b border-border-subtle">
         <PlayerHeader
           name={top.playerName ?? 'Gracz 1'}
+          avg={top.playerAvg}
           remaining={p0Remaining}
           legsWon={p0LegsWon}
           isActive={active === 0}
@@ -47,6 +48,7 @@ export function LiveMatchViewer({ match, onClose }: Props) {
         </div>
         <PlayerHeader
           name={bottom.playerName ?? 'Gracz 2'}
+          avg={bottom.playerAvg}
           remaining={p1Remaining}
           legsWon={p1LegsWon}
           isActive={active === 1}

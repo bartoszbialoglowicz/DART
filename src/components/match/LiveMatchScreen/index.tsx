@@ -4,6 +4,8 @@ import { MatchSummaryScreen } from '../MatchSummaryScreen';
 import { Button } from '../../ui/Button';
 import { cn } from '../../ui/cn';
 import { GameShell } from '../../game/GameShell';
+import { Tag } from '../../ui/Tag';
+import { fmtMatchFormat } from '../../../utils/formatting';
 import { useMatchEngine } from './useMatchEngine';
 import { PlayerHeader } from './PlayerHeader';
 import { DoubleModal } from './DoubleModal';
@@ -67,7 +69,11 @@ export function LiveMatchScreen(props: Props) {
   ];
 
   return (
-    <GameShell title={bothCpu ? 'Symulacja na żywo' : 'Na żywo'} onClose={onClose}>
+    <GameShell
+      title={bothCpu ? 'Symulacja na żywo' : 'Na żywo'}
+      badge={<Tag>{fmtMatchFormat(props.matchFormat)}</Tag>}
+      onClose={onClose}
+    >
 
       {/* ── Top section ──────────────────────────────────── */}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -76,6 +82,7 @@ export function LiveMatchScreen(props: Props) {
         <div className="flex shrink-0 border-b border-border-subtle">
           <PlayerHeader
             name={top.playerName ?? 'Gracz 1'}
+            avg={top.playerAvg}
             remaining={p0Remaining}
             legsWon={legsWon[0]}
             setsWon={isMultiSet ? setsWon[0] : undefined}
@@ -96,6 +103,7 @@ export function LiveMatchScreen(props: Props) {
           </div>
           <PlayerHeader
             name={bottom.playerName ?? 'Gracz 2'}
+            avg={bottom.playerAvg}
             remaining={p1Remaining}
             legsWon={legsWon[1]}
             setsWon={isMultiSet ? setsWon[1] : undefined}

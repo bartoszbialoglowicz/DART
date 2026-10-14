@@ -9,7 +9,7 @@ import type { MatchFormat } from '../types/tournament';
 import { useAddTrainingSession } from '../hooks/useTraining';
 import { useCreatePendingResult } from '../hooks/usePendingResults';
 import { computeMatchStats } from '../utils/statistics';
-import { usePlayers } from '../hooks/usePlayers';
+import { useMyAverage, usePlayers } from '../hooks/usePlayers';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { Input } from '../components/ui/Input';
@@ -30,7 +30,8 @@ type ActiveMode = 'vs-cpu' | 'vs-guest' | null;
 const ROUTED_MODES = new Set(['checkouts', 'bob27', '501-solo', 'highscore', 'sector']);
 
 interface SoloConfig {
-  difficulty?:     { label: string; sigma: number };
+  /** avg is optional so sessions saved before it existed still load. */
+  difficulty?:     { label: string; sigma: number; avg?: number };
   guestName?:      string;
   guestPlayerId?:  number;
   matchFormat:     MatchFormat;
@@ -171,6 +172,7 @@ export function SoloPage() {
   const currentLegRef       = useRef<{ rounds: LegRound[]; activePlayer: 0 | 1 } | null>(null);
   const addTrainingSession  = useAddTrainingSession();
   const createPendingResult = useCreatePendingResult();
+  const myAverage           = useMyAverage();
 
   // Block router navigation while a 501 game is active in the UI
   const blocker = useBlocker(
@@ -281,8 +283,8 @@ export function SoloPage() {
   if (activeMode === 'vs-cpu' && soloConfig?.difficulty) {
     const match: BracketMatch = {
       id:         'solo-cpu',
-      top:        { playerId: null, playerName: 'Ty',                        playerAvg: null, isCpu: false },
-      bottom:     { playerId: null, playerName: soloConfig.difficulty.label, playerAvg: null, isCpu: true, cpuSigma: soloConfig.difficulty.sigma },
+      top:        { playerId: null, playerName: 'Ty',                        playerAvg: myAverage, isCpu: false },
+      bottom:     { playerId: null, playerName: soloConfig.difficulty.label, playerAvg: soloConfig.difficulty.avg ?? null, isCpu: true, cpuSigma: soloConfig.difficulty.sigma },
       legs:       completedLegsRef.current.length > 0 ? completedLegsRef.current : undefined,
       currentLeg: currentLegRef.current ?? undefined,
     };
@@ -306,7 +308,7 @@ export function SoloPage() {
     const guestName = soloConfig.guestName?.trim() || 'Gość';
     const match: BracketMatch = {
       id:         'solo-guest',
-      top:        { playerId: null, playerName: 'Ty',      playerAvg: null, isCpu: false },
+      top:        { playerId: null, playerName: 'Ty',      playerAvg: myAverage, isCpu: false },
       bottom:     { playerId: null, playerName: guestName, playerAvg: null, isCpu: false },
       legs:       completedLegsRef.current.length > 0 ? completedLegsRef.current : undefined,
       currentLeg: currentLegRef.current ?? undefined,
@@ -527,7 +529,7 @@ function VsCpuSetup({
         size="lg"
         fullWidth
         onClick={() => onStart({
-          difficulty:  { label: botLevel(avg), sigma: avgToSigma(avg) },
+          difficulty:  { label: botLevel(avg), sigma: avgToSigma(avg), avg },
           matchFormat: { sets, legs, ...(resolvedMaxDartsPerLeg != null ? { max_darts_per_leg: resolvedMaxDartsPerLeg } : {}) },
         })}
       >

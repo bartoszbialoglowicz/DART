@@ -24,12 +24,15 @@ function hasFile(payload: PlayerPayload): boolean {
 }
 
 export const playersApi = {
-  list(params?: { search?: string; ordering?: string }) {
-    const qs = new URLSearchParams();
-    if (params?.search)   qs.set('search',   params.search);
-    if (params?.ordering) qs.set('ordering', params.ordering);
-    const query = qs.size ? `?${qs}` : '';
-    return client.get<PaginatedResponse<Player>>(`/players/${query}`).then(r => r.results);
+  // The endpoint is paginated (PAGE_SIZE 50) but callers want every player
+  // (pickers, bot list) — walk all pages instead of silently stopping at 50.
+  async list(params?: { search?: string; ordering?: string }) {
+    const all: Player[] = [];
+    for (let page = 1; ; page++) {
+      const res = await playersApi.listPaginated({ ...params, page });
+      all.push(...res.results);
+      if (!res.next) return all;
+    }
   },
 
   listPaginated(params?: { search?: string; ordering?: string; page?: number }) {

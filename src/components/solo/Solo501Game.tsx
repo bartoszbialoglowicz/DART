@@ -10,6 +10,7 @@ import type { DoubleAttempt, LegRecord, LegRound } from '../../types/bracket';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { cn } from '../ui/cn';
+import { useMyAverage } from '../../hooks/usePlayers';
 
 const START = 501;
 
@@ -62,6 +63,7 @@ export function Solo501Game({ legsTarget, onBack, onFinish }: Props) {
   const [input,         setInput]         = useState('');
   const [doubleModalPending, setDoubleModalPending] = useState<DoubleModalPending | null>(null);
   const [statsSaved,    setStatsSaved]    = useState(false);
+  const myAverage = useMyAverage();
 
   function persist(next: Partial<Solo501Session>) {
     saveSession({
@@ -178,6 +180,7 @@ export function Solo501Game({ legsTarget, onBack, onFinish }: Props) {
         <div className="flex shrink-0 border-b border-border-subtle">
           <PlayerHeader
             name="Ty"
+            avg={myAverage}
             remaining={remaining}
             legsWon={completedLegs.length}
             legAvg={legAvg}

@@ -86,11 +86,6 @@ export function TournamentSetupPage() {
     });
   }
 
-  function handleBulkSet(players: TournamentPlayer[]) {
-    const placeholders = entries.filter(e => e.id < 0);
-    setEntries([...players, ...placeholders]);
-  }
-
   function handleAddPlaceholder(name: string) {
     placeholderCounter.current -= 1;
     addEntry({
@@ -214,7 +209,7 @@ export function TournamentSetupPage() {
       groupSize={groupSize}
       onGroupSizeChange={handleGroupSizeChange}
       entries={entries}
-      onBulkSet={handleBulkSet}
+      onAdd={addEntry}
       onAddPlaceholder={handleAddPlaceholder}
       onRemove={removeEntry}
       maxPlayers={maxPlayers}

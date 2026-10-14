@@ -55,6 +55,19 @@ export function useMyStats() {
   });
 }
 
+/**
+ * The signed-in player's average for display (skill-tier medal): their
+ * tournament match average from the profile stats, falling back to the
+ * profile's stored average. null while loading or when neither is set.
+ */
+export function useMyAverage(): number | null {
+  const { data } = useMyStats();
+  if (!data) return null;
+  if (data.stats.match_average > 0) return data.stats.match_average;
+  const stored = Number(data.player.average);
+  return stored > 0 ? stored : null;
+}
+
 export function useMyEvents() {
   return useQuery({
     queryKey: ['players', 'my-events'],

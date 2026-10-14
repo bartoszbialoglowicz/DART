@@ -100,6 +100,15 @@
   --color-border-accent: var(--color-brand-purple-400);
   --color-border-strong: var(--color-ink-50);
 
+  /* Remaining score in a match header — read from the oche (~2.5–3 m away),
+     so it scales with its panel's width (the panel is an @container): "501"
+     in Saira Condensed fills ~85% of the panel at 55cqw. The waiting player
+     gets ~70% of that so size alone shows whose turn it is. */
+  --text-remaining:                clamp(3rem, 55cqw, 10rem);
+  --text-remaining--line-height:   1;
+  --text-remaining-idle:              clamp(2.25rem, 38cqw, 7rem);
+  --text-remaining-idle--line-height: 1;
+
   --font-display: "Saira Condensed", system-ui, sans-serif;
   --font-sans:    "Inter", system-ui, sans-serif;
   --font-mono:    "JetBrains Mono", ui-monospace, monospace;
